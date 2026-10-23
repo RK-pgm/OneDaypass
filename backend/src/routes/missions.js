@@ -7,7 +7,7 @@ const db = require('../db');
 
 const router = express.Router();
 
-const uploadDir = path.resolve(__dirname, '..', '..', 'uploads');
+const { uploadsDir: uploadDir } = require('../lib/storagePaths');
 fs.mkdirSync(uploadDir, { recursive: true });
 
 const storage = multer.diskStorage({

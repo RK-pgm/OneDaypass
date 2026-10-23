@@ -1,15 +1,14 @@
 require('dotenv').config();
 
 const fs = require('node:fs');
-const path = require('node:path');
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
 const createStubRouter = require('./routes/stub');
+const { uploadsDir } = require('./lib/storagePaths');
 
 const app = express();
 const port = Number(process.env.PORT || 3000);
-const uploadsDir = path.resolve(__dirname, '..', 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.use(cors());

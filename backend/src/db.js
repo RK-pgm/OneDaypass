@@ -2,10 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 
-const configuredPath = process.env.DB_PATH || './data/daypass.sqlite';
-const dbPath = path.isAbsolute(configuredPath)
-  ? configuredPath
-  : path.resolve(__dirname, '..', configuredPath);
+const { databasePath: dbPath } = require('./lib/storagePaths');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 
 const db = new Database(dbPath);
