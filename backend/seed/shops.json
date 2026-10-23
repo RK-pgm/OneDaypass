@@ -1,1 +1,379 @@
-[]
+[
+  {
+    "id": "s01",
+    "name": "Hong Sieng Kong (ฮงเซียงกง)",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.7335,
+    "lng": 100.5126,
+    "avgPrice": 180,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "Orange Dirty Coffee & เค้กมะพร้าวอ่อน",
+    "coupon": {
+      "title": "รับฟรี ซอฟต์คุกกี้โฮมเมด 1 ชิ้น เมื่อสั่งเครื่องดื่ม",
+      "valueText": "แถมขนมมูลค่า 45 บาท"
+    },
+    "openFrom": "10:00",
+    "openTo": "20:00",
+    "durationMin": 60,
+    "mission": {
+      "title": "ถ่ายรูปแก้วเครื่องดื่มคู่กับวิวแม่น้ำเจ้าพระยา",
+      "points": 5
+    }
+  },
+  {
+    "id": "s02",
+    "name": "Mother Roaster (มาเธอร์ โรสเตอร์)",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.7352,
+    "lng": 100.5141,
+    "avgPrice": 110,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "Single Origin Drip Coffee และ กาแฟมะนาวโซดา",
+    "coupon": {
+      "title": "ส่วนลด 15 บาท สำหรับเครื่องดื่ม Slow Bar ทุกแก้ว",
+      "valueText": "ลด 15 บาท"
+    },
+    "openFrom": "10:00",
+    "openTo": "18:00",
+    "durationMin": 45,
+    "mission": {
+      "title": "ถ่ายรูปมุมบาริสต้าดริปกาแฟใต้ถุนบ้านไม้เก่า",
+      "points": 5
+    }
+  },
+  {
+    "id": "s03",
+    "name": "Feng Zhu Pork Dumpling (เฟิงจู เกี๊ยวซ่าหน้าเปิด)",
+    "district": "ตลาดน้อย",
+    "category": "food",
+    "lat": 13.7289,
+    "lng": 100.514,
+    "avgPrice": 85,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "เกี๊ยวซ่าหน้าเปิดหมูสับดั้งเดิม + บะหมี่คลุกซอสฮ่องกง",
+    "coupon": {
+      "title": "แถมฟรี น้ำสมุนไพรจีนโบราณ 1 แก้ว เมื่อสั่งชุด 6 ชิ้น",
+      "valueText": "น้ำสมุนไพรฟรี มูลค่า 25 บาท"
+    },
+    "openFrom": "10:00",
+    "openTo": "19:00",
+    "durationMin": 30,
+    "mission": {
+      "title": "ถ่ายรูปเกี๊ยวซ่าหน้าเปิดโรยกระเทียมเจียวและไข่กุ้ง",
+      "points": 5
+    }
+  },
+  {
+    "id": "s04",
+    "name": "กะหรี่ปั๊บคุณปุ๊ ตลาดน้อย",
+    "district": "ตลาดน้อย",
+    "category": "dessert",
+    "lat": 13.736,
+    "lng": 100.5138,
+    "avgPrice": 50,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "กะหรี่ปั๊บไส้ไก่พริกไทยดำ และ ไส้เผือก",
+    "coupon": {
+      "title": "ซื้อกะหรี่ปั๊บ 5 ชิ้น แถมฟรี 1 ชิ้นทันที",
+      "valueText": "แถม 1 ชิ้น มูลค่า 12 บาท"
+    },
+    "openFrom": "08:00",
+    "openTo": "14:00",
+    "durationMin": 15,
+    "mission": {
+      "title": "ถ่ายรูปผ่ากะหรี่ปั๊บโชว์แป้งบางกรอบและไส้แน่น",
+      "points": 5
+    }
+  },
+  {
+    "id": "s05",
+    "name": "Patina Bangkok (พาทิน่า)",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.7346,
+    "lng": 100.5135,
+    "avgPrice": 140,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "Dirty Chai Latte & Cranberry Scone",
+    "coupon": {
+      "title": "ลดทันที 10% ทุกเมนูกาแฟ Signature",
+      "valueText": "ลด 10%"
+    },
+    "openFrom": "09:00",
+    "openTo": "18:00",
+    "durationMin": 50,
+    "mission": {
+      "title": "ถ่ายรูปมุมคอร์ทยาร์ดบ้านจีนโบราณอายุกว่า 200 ปี",
+      "points": 5
+    }
+  },
+  {
+    "id": "s06",
+    "name": "เป็ดพะโล้นายหนับ ตลาดน้อย",
+    "district": "ตลาดน้อย",
+    "category": "food",
+    "lat": 13.7348,
+    "lng": 100.5147,
+    "avgPrice": 100,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ข้าวหน้าเป็ดพะโล้เนื้อนุ่ม + ไส้แก้วกรุบกรอบ",
+    "coupon": {
+      "title": "ลด 10 บาท เมื่อสั่งชุดเป็ดพะโล้จานเดี่ยว",
+      "valueText": "ลด 10 บาท"
+    },
+    "openFrom": "08:30",
+    "openTo": "15:00",
+    "durationMin": 35,
+    "mission": {
+      "title": "ถ่ายรูปเป็ดพะโล้ราดน้ำซอสกลมกล่อมคู่พริกดองสูตรโบราณ",
+      "points": 5
+    }
+  },
+  {
+    "id": "s07",
+    "name": "Timo & Tintin",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.7339,
+    "lng": 100.5142,
+    "avgPrice": 130,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "Babyccino & Tintin Homemade Soft Cookie",
+    "coupon": {
+      "title": "รับฟรี สติกเกอร์น้องหมา Timo สุดชิค 1 เซ็ต",
+      "valueText": "สติกเกอร์ฟรี"
+    },
+    "openFrom": "09:00",
+    "openTo": "17:00",
+    "durationMin": 40,
+    "mission": {
+      "title": "ถ่ายรูปคู่กับรูปวาดน้องหมาหน้าร้าน Timo & Tintin",
+      "points": 5
+    }
+  },
+  {
+    "id": "s08",
+    "name": "ก๋วยเตี๋ยวรู ตลาดน้อย (เจ๊บ๊วย)",
+    "district": "ตลาดน้อย",
+    "category": "food",
+    "lat": 13.7355,
+    "lng": 100.5149,
+    "avgPrice": 75,
+    "tags": [
+      "challenge"
+    ],
+    "recommendedMenu": "บะหมี่แห้งเกี๊ยวหมูแดง พร้อมหมูกรอบย่างเตาถ่าน",
+    "coupon": {
+      "title": "แถมฟรี เกี๊ยวกรอบทอด 1 ถ้วยเล็ก",
+      "valueText": "เกี๊ยวกรอบฟรี มูลค่า 15 บาท"
+    },
+    "openFrom": "08:00",
+    "openTo": "15:00",
+    "durationMin": 30,
+    "mission": {
+      "title": "ถ่ายรูปชามบะหมี่เส้นเหนียวนุ่มในตรอกแคบอันเป็นเอกลักษณ์",
+      "points": 5
+    }
+  },
+  {
+    "id": "s09",
+    "name": "ศาลเจ้าโจวซือกง (Chow Sue Kong Shrine)",
+    "district": "ตลาดน้อย",
+    "category": "activity",
+    "lat": 13.7331,
+    "lng": 100.5123,
+    "avgPrice": 20,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ไหว้พระขอพรสุขภาพและชมสถาปัตยกรรมไม้แกะสลักจีนฮกเกี้ยน",
+    "coupon": null,
+    "openFrom": "07:00",
+    "openTo": "17:00",
+    "durationMin": 35,
+    "mission": {
+      "title": "ถ่ายรูปสถาปัตยกรรมลวดลายมังกรหลังคาศาลเจ้าอายุ 200 ปี",
+      "points": 5
+    }
+  },
+  {
+    "id": "s10",
+    "name": "Baan Rim Naam (บ้านริมน้ำ ตลาดน้อย)",
+    "district": "ตลาดน้อย",
+    "category": "food",
+    "lat": 13.7338,
+    "lng": 100.512,
+    "avgPrice": 220,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "ยำส้มโอโบราณ และ ชาไทยคราฟต์ออร์แกนิก",
+    "coupon": {
+      "title": "รับส่วนลดอาหาร 10% เมื่อทานครบ 300 บาท",
+      "valueText": "ลด 10%"
+    },
+    "openFrom": "11:00",
+    "openTo": "21:00",
+    "durationMin": 60,
+    "mission": {
+      "title": "ถ่ายรูปเครื่องดื่มริมชานไม้ติดแม่น้ำเจ้าพระยา",
+      "points": 5
+    }
+  },
+  {
+    "id": "s11",
+    "name": "ตรอกเซียงกง & ซากรถเต่าคลาสสิก",
+    "district": "ตลาดน้อย",
+    "category": "photo",
+    "lat": 13.7333,
+    "lng": 100.5122,
+    "avgPrice": 0,
+    "tags": [
+      "challenge"
+    ],
+    "recommendedMenu": "ถ่ายรูปจุดแลนด์มาร์กซากรถโฟล์คและสตรีตอาร์ตริมน้ำ",
+    "coupon": null,
+    "openFrom": "06:00",
+    "openTo": "19:00",
+    "durationMin": 25,
+    "mission": {
+      "title": "ถ่ายรูปโพสท่าเท่ๆ คู่กับซากรถเต่าคลาสสิก",
+      "points": 5
+    }
+  },
+  {
+    "id": "s12",
+    "name": "ขนมเปี๊ยะแต้เล่าจิ้นเส็ง",
+    "district": "ตลาดน้อย",
+    "category": "dessert",
+    "lat": 13.7368,
+    "lng": 100.5115,
+    "avgPrice": 90,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "ขนมเปี๊ยะถั่วฟักไข่เค็ม และ ขนมจันอับโบราณ",
+    "coupon": {
+      "title": "ซื้อครบ 150 บาท รับฟรี ขนมเปี๊ยะจิ๋ว 1 ชิ้น",
+      "valueText": "แถม 1 ชิ้น"
+    },
+    "openFrom": "08:30",
+    "openTo": "18:30",
+    "durationMin": 20,
+    "mission": {
+      "title": "ถ่ายรูปกล่องขนมเปี๊ยะสีแดงลายจีนดั้งเดิมคู่หน้าร้าน",
+      "points": 5
+    }
+  },
+  {
+    "id": "s13",
+    "name": "โบสถ์กาลหว่าร์ (Holy Rosary Church)",
+    "district": "ตลาดน้อย",
+    "category": "photo",
+    "lat": 13.7314,
+    "lng": 100.5134,
+    "avgPrice": 0,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "ชมสถาปัตยกรรมนีโอโกธิคและกระจกสีเก่าแก่กว่าศตวรรษ",
+    "coupon": null,
+    "openFrom": "08:00",
+    "openTo": "18:00",
+    "durationMin": 30,
+    "mission": {
+      "title": "ถ่ายรูปยอดหอคอยโบสถ์กาลหว่าร์มองจากริมแม่น้ำ",
+      "points": 5
+    }
+  },
+  {
+    "id": "s14",
+    "name": "Vanich House (วานิชเฮาส์ & วานิชดี)",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.735,
+    "lng": 100.5139,
+    "avgPrice": 125,
+    "tags": [
+      "chill"
+    ],
+    "recommendedMenu": "Peach Cold Brew & ครอฟเฟิลเนยสดแท้",
+    "coupon": {
+      "title": "ส่วนลด 20 บาท เมื่อสั่งคู่เครื่องดื่มและเบเกอรี่",
+      "valueText": "ลด 20 บาท"
+    },
+    "openFrom": "09:30",
+    "openTo": "18:00",
+    "durationMin": 45,
+    "mission": {
+      "title": "ถ่ายรูปครอฟเฟิลสีทองกรอบคู่กับแก้วโคลด์บรูว์",
+      "points": 5
+    }
+  },
+  {
+    "id": "s15",
+    "name": "Citizens Tea Canteen of Yan Ekachai",
+    "district": "ตลาดน้อย",
+    "category": "cafe",
+    "lat": 13.7356,
+    "lng": 100.5132,
+    "avgPrice": 140,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ชาเบลนด์สมุนไพรไทย เสิร์ฟพร้อมขนมไทยโบราณหาทานยาก",
+    "coupon": {
+      "title": "รับฟรี ขนมไทยโบราณ 1 คำ เมื่อสั่งชาร้อนแบบกา",
+      "valueText": "แถมขนมไทย 1 ชิ้น"
+    },
+    "openFrom": "10:00",
+    "openTo": "18:00",
+    "durationMin": 45,
+    "mission": {
+      "title": "ถ่ายรูปกาน้ำชาเซรามิกบนโต๊ะสไตล์ Craft Tea Room",
+      "points": 5
+    }
+  },
+  {
+    "id": "s16",
+    "name": "River City Bangkok (ริเวอร์ ซิตี้ แบงค็อก)",
+    "district": "ตลาดน้อย",
+    "category": "activity",
+    "lat": 13.7297,
+    "lng": 100.5137,
+    "avgPrice": 0,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ชมนิทรรศการศิลปะร่วมสมัยหมุนเวียนและแกลเลอรีภาพถ่าย",
+    "coupon": null,
+    "openFrom": "10:00",
+    "openTo": "20:00",
+    "durationMin": 60,
+    "mission": {
+      "title": "ถ่ายรูปกับงานอาร์ตชิ้นโปรดใน RCB Galleria ชั้น 2",
+      "points": 5
+    }
+  }
+]

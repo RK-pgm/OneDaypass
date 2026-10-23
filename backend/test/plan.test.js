@@ -4,7 +4,7 @@ const path = require('path');
 const { generatePlan } = require('../src/lib/planner');
 
 // โหลดข้อมูลร้านจริง 16 ร้านในตลาดน้อยจาก seed/shops.json
-const seedPath = path.join(__dirname, '..', '..', 'seed', 'shops.json');
+const seedPath = path.join(__dirname, '..', 'seed', 'shops.json');
 const sampleShops = JSON.parse(fs.readFileSync(seedPath, 'utf-8'));
 
 console.log(`🧪 Testing lib/planner.js with ${sampleShops.length} seed shops...\n`);

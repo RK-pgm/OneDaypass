@@ -24,6 +24,7 @@ router.get('/', (req, res) => {
 
     return res.json({
       totalPoints,
+      points: totalPoints,
       pointValueBaht: POINT_VALUE_BAHT
     });
   } catch (error) {
