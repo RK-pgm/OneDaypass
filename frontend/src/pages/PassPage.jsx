@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { getPass, redeemCoupon, checkin, submitMission, getDeviceId } from '../api';
+import { getPass, redeemCoupon, checkin, submitMission, getDeviceId, getPoints } from '../api';
 
 const DEMO_MODE = true;
 
@@ -87,11 +87,11 @@ function CouponCard({ coupon, passId, onRedeemed }) {
 }
 
 // ── Sub-component: MissionCard ───────────────────────────────
-function MissionCard({ item, passId, alreadyUnlocked, onPointsEarned }) {
+function MissionCard({ item, passId, alreadyCompleted, onPointsEarned }) {
   const [imageFile, setImageFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(alreadyUnlocked);
+  const [done, setDone] = useState(alreadyCompleted);
   const [earnedPoints, setEarnedPoints] = useState(null);
 
   if (!item.mission) return null;
@@ -288,7 +288,7 @@ export default function PassPage() {
     try {
       const data = await getPass(passId);
       setPass(data);
-      const pts = await import('../api').then((m) => m.getPoints(getDeviceId()));
+      const pts = await getPoints(getDeviceId());
       setTotalPoints(pts.totalPoints);
     } catch {
       // Fallback
@@ -310,10 +310,14 @@ export default function PassPage() {
   }
 
   function handleCouponRedeemed(couponId) {
-    setPass((prev) => ({
-      ...prev,
-      coupons: prev.coupons.map((c) => (c.id === couponId ? { ...c, used: true } : c)),
-    }));
+    setPass((prev) => {
+      const updated = {
+        ...prev,
+        coupons: prev.coupons.map((c) => (c.id === couponId ? { ...c, used: true } : c)),
+      };
+      localStorage.setItem(`daypass_pass_${passId}`, JSON.stringify(updated));
+      return updated;
+    });
   }
 
   function handleCheckin(shopId, unlockedMissionIds) {
@@ -563,7 +567,7 @@ export default function PassPage() {
                   .filter((item) => item.mission)
                   .map((item) => {
                     const isCheckedIn = checkedInShopIds.has(item.shopId);
-                    const isUnlocked = pass.unlockedMissionIds.includes(item.mission.id);
+                    const isCompleted = (pass.completedMissionIds || []).includes(item.mission.id);
 
                     return (
                       <div key={item.mission.id}>
@@ -571,7 +575,7 @@ export default function PassPage() {
                           <MissionCard
                             item={item}
                             passId={passId}
-                            alreadyUnlocked={isUnlocked}
+                            alreadyCompleted={isCompleted}
                             onPointsEarned={handlePointsEarned}
                           />
                         ) : (

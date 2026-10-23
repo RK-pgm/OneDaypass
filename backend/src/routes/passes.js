@@ -14,8 +14,10 @@ router.get('/:passId', (req, res) => {
     WHERE c.passId = ? AND s.missionJson IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM mission_submissions ms WHERE ms.passId = c.passId AND ms.missionId = 'm-' || s.id
     )`).all(pass.id).map((row) => row.missionId);
+  const completedMissionIds = db.prepare('SELECT missionId FROM mission_submissions WHERE passId = ?').all(pass.id)
+    .map((row) => row.missionId);
   return res.json({ id: pass.id, code: pass.code, status: pass.status, validDate: pass.validDate,
-    people: pass.people, plan: JSON.parse(pass.planJson), coupons, checkins, unlockedMissionIds });
+    people: pass.people, plan: JSON.parse(pass.planJson), coupons, checkins, unlockedMissionIds, completedMissionIds });
 });
 
 module.exports = router;

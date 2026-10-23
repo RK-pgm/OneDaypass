@@ -57,7 +57,7 @@ const res3 = generatePlan(sampleShops, {
 });
 
 console.log(`  ✅ Total cost for ฿150 budget: ฿${res3.plan.totalCostPerPerson}`);
-assert(res3.plan.totalCostPerPerson <= 250, 'Planner should strictly manage tight budget');
+assert(res3.plan.totalCostPerPerson <= 150, 'Planner must not exceed the requested budget');
 
 // -------------------------------------------------------------
 // Test Case 4: รัศมีแคบมาก (0.25 กม.) & ตรวจจับ Warning (ไม่ Crash)

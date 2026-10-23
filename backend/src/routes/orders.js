@@ -3,9 +3,9 @@ const express = require('express');
 const promptpay = require('promptpay-qr');
 const QRCode = require('qrcode');
 const db = require('../db');
+const { calcPointsDiscount } = require('../lib/pointsDiscount');
 
 const router = express.Router();
-const POINT_BAHT = 2;
 const balanceFor = (deviceId) => Math.max(0, db.prepare(
   'SELECT COALESCE(SUM(delta), 0) AS total FROM points_ledger WHERE deviceId = ?'
 ).get(deviceId).total);
@@ -21,35 +21,114 @@ function bangkokDate() {
   }).format(new Date());
 }
 
+function findShopsForPlan(items) {
+  if (!Array.isArray(items) || items.length < 1 || items.length > 12) return null;
+  const shopIds = items.map((item) => item?.shopId);
+  if (shopIds.some((id) => typeof id !== 'string' || !id.trim()) || new Set(shopIds).size !== shopIds.length) return null;
+
+  const placeholders = shopIds.map(() => '?').join(',');
+  const rows = db.prepare(`SELECT * FROM shops WHERE id IN (${placeholders})`).all(...shopIds);
+  if (rows.length !== shopIds.length) return null;
+
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  const planItems = items.map((item, index) => {
+    const shop = byId.get(item.shopId);
+    const coupon = shop.couponJson ? JSON.parse(shop.couponJson) : null;
+    const mission = shop.missionJson ? JSON.parse(shop.missionJson) : null;
+    return {
+      order: index + 1,
+      time: typeof item.time === 'string' ? item.time : '',
+      shopId: shop.id,
+      shopName: shop.name,
+      category: shop.category,
+      lat: shop.lat,
+      lng: shop.lng,
+      activity: typeof item.activity === 'string' ? item.activity : shop.recommendedMenu || shop.name,
+      estCost: shop.avgPrice,
+      durationMin: shop.durationMin,
+      distanceFromPrevKm: Number.isFinite(item.distanceFromPrevKm) ? item.distanceFromPrevKm : 0,
+      coupon: coupon ? { id: `c-${shop.id}`, title: coupon.title, valueText: coupon.valueText || '' } : null,
+      mission: mission ? { id: `m-${shop.id}`, title: mission.title, points: mission.points || 5 } : null
+    };
+  });
+
+  return {
+    title: typeof items.title === 'string' ? items.title : 'แผนเที่ยว DayPass',
+    style: ['chill', 'challenge'].includes(items.style) ? items.style : 'chill',
+    items: planItems,
+    totalCostPerPerson: planItems.reduce((sum, item) => sum + item.estCost, 0)
+  };
+}
+
+async function buildPaymentQuote(promptpayId, subtotal, pointsBalance, requestedPoints) {
+  const discount = calcPointsDiscount(pointsBalance, requestedPoints, subtotal);
+  const payload = promptpay(promptpayId, { amount: discount.finalAmount });
+  const qrDataUrl = await QRCode.toDataURL(payload, { errorCorrectionLevel: 'M', margin: 2, width: 320 });
+  return {
+    amount: discount.finalAmount,
+    discount: discount.discountBaht,
+    pointsUsed: discount.pointsDeducted,
+    promptpayPayload: payload,
+    qrDataUrl
+  };
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const { deviceId, plan, people, usePoints = 0 } = req.body || {};
     if (typeof deviceId !== 'string' || !deviceId.trim() || deviceId.length > 128) return res.status(400).json({ error: 'กรุณาระบุ deviceId' });
-    if (!plan || !Array.isArray(plan.items) || !Number.isFinite(plan.totalCostPerPerson) || plan.totalCostPerPerson <= 0) return res.status(400).json({ error: 'ข้อมูลแผนเที่ยวไม่ถูกต้อง' });
+    if (!plan || !Array.isArray(plan.items)) return res.status(400).json({ error: 'ข้อมูลแผนเที่ยวไม่ถูกต้อง' });
     if (!Number.isInteger(people) || people < 1 || people > 20) return res.status(400).json({ error: 'จำนวนคนต้องอยู่ระหว่าง 1 ถึง 20' });
     if (!Number.isInteger(usePoints) || usePoints < 0) return res.status(400).json({ error: 'จำนวนแต้มที่ใช้ไม่ถูกต้อง' });
     const promptpayId = process.env.PROMPTPAY_ID;
     if (!promptpayId) return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า PROMPTPAY_ID ในไฟล์ .env' });
 
-    const subtotal = Math.round(plan.totalCostPerPerson * people);
+    const trustedPlan = findShopsForPlan(plan.items);
+    if (!trustedPlan) return res.status(400).json({ error: 'แผนมีร้านซ้ำ หรือมีร้านที่ไม่อยู่ในระบบ' });
+    trustedPlan.title = typeof plan.title === 'string' ? plan.title : trustedPlan.title;
+    trustedPlan.style = ['chill', 'challenge'].includes(plan.style) ? plan.style : 'chill';
+    const subtotal = Math.round(trustedPlan.totalCostPerPerson * people);
+    if (subtotal <= 0) return res.status(400).json({ error: 'แผนเที่ยวนี้ไม่มีค่าใช้จ่าย ไม่สามารถสร้างคำสั่งซื้อได้' });
     const pointsBalance = balanceFor(deviceId);
     if (usePoints > pointsBalance) return res.status(400).json({ error: 'แต้มของคุณไม่เพียงพอ' });
-    const pointsUsed = Math.min(usePoints, Math.floor(Math.floor(subtotal * 0.3) / POINT_BAHT));
-    const discount = pointsUsed * POINT_BAHT;
-    const amount = subtotal - discount;
+    const quote = await buildPaymentQuote(promptpayId, subtotal, pointsBalance, usePoints);
     const orderId = `o_${crypto.randomUUID()}`;
-    const payload = promptpay(promptpayId, { amount });
-    const qrDataUrl = await QRCode.toDataURL(payload, { errorCorrectionLevel: 'M', margin: 2, width: 320 });
     db.prepare(`INSERT INTO orders (id, deviceId, planJson, people, amount, discount, pointsUsed, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`).run(
-      orderId, deviceId, JSON.stringify(plan), people, amount, discount, pointsUsed
+      orderId, deviceId, JSON.stringify(trustedPlan), people, quote.amount, quote.discount, quote.pointsUsed
     );
-    return res.status(201).json({ orderId, amount, discount, status: 'pending', promptpayPayload: payload, qrDataUrl });
+    return res.status(201).json({ orderId, ...quote, status: 'pending' });
+  } catch (error) { return next(error); }
+});
+
+router.post('/:orderId/points', async (req, res, next) => {
+  try {
+    const { deviceId, usePoints } = req.body || {};
+    if (typeof deviceId !== 'string' || !deviceId.trim() || deviceId.length > 128) return res.status(400).json({ error: 'กรุณาระบุ deviceId' });
+    if (!Number.isInteger(usePoints) || usePoints < 0) return res.status(400).json({ error: 'จำนวนแต้มที่ใช้ไม่ถูกต้อง' });
+
+    const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'ไม่พบคำสั่งซื้อนี้' });
+    if (order.deviceId !== deviceId) return res.status(403).json({ error: 'ไม่มีสิทธิ์แก้ไขคำสั่งซื้อนี้' });
+    if (order.status !== 'pending') return res.status(409).json({ error: 'แก้ไขส่วนลดได้เฉพาะคำสั่งซื้อที่รอชำระเงิน' });
+
+    const promptpayId = process.env.PROMPTPAY_ID;
+    if (!promptpayId) return res.status(503).json({ error: 'ยังไม่ได้ตั้งค่า PROMPTPAY_ID ในไฟล์ .env' });
+    const pointsBalance = balanceFor(deviceId);
+    if (usePoints > pointsBalance) return res.status(400).json({ error: 'แต้มของคุณไม่เพียงพอ' });
+    const quote = await buildPaymentQuote(promptpayId, order.amount + order.discount, pointsBalance, usePoints);
+    const updated = db.prepare(`UPDATE orders SET amount = ?, discount = ?, pointsUsed = ?
+      WHERE id = ? AND status = 'pending'`).run(quote.amount, quote.discount, quote.pointsUsed, order.id);
+    if (updated.changes !== 1) return res.status(409).json({ error: 'คำสั่งซื้อเปลี่ยนสถานะแล้ว กรุณาโหลดหน้าใหม่' });
+    return res.json({ orderId: order.id, ...quote, status: 'pending' });
   } catch (error) { return next(error); }
 });
 
 router.post('/:orderId/confirm', (req, res, next) => {
   try {
+    if (process.env.NODE_ENV === 'production' || process.env.DEMO_MODE !== 'true') {
+      return res.status(503).json({ error: 'ระบบยืนยันการชำระเงินจริงยังไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแลระบบ' });
+    }
     const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.orderId);
     if (!order) return res.status(404).json({ error: 'ไม่พบคำสั่งซื้อนี้' });
     const existingPass = db.prepare('SELECT id FROM passes WHERE orderId = ?').get(order.id);

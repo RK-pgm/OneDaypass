@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 
+const CURRENT_YEAR = new Date().getFullYear();
+
 export default function Footer() {
   const navigate = useNavigate();
 
@@ -30,7 +32,7 @@ export default function Footer() {
         </div>
 
         <p className="text-slate-400 text-xs">
-          © {new Date().getFullYear()} DayPass Team. All rights reserved.
+          © {CURRENT_YEAR} DayPass Team. All rights reserved.
         </p>
       </div>
     </footer>

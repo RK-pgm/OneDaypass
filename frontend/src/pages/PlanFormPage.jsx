@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { generatePlan, getDeviceId, DISTRICTS } from '../api';
 
@@ -28,8 +28,14 @@ function getRadiusLabel(km) {
 export default function PlanFormPage() {
   const navigate = useNavigate();
 
-  const [selectedDistrict, setSelectedDistrict] = useState(DISTRICTS[0]);
-  const [budget, setBudget] = useState(299);
+  const [selectedDistrict, setSelectedDistrict] = useState(() => {
+    const savedDistrictId = sessionStorage.getItem('daypass_selected_district');
+    return DISTRICTS.find((district) => district.id === savedDistrictId) || DISTRICTS[0];
+  });
+  const [budget, setBudget] = useState(() => {
+    const savedBudget = Number(sessionStorage.getItem('daypass_preset_budget'));
+    return BUDGET_OPTIONS.some((option) => option.value === savedBudget) ? savedBudget : 299;
+  });
   const [style, setStyle] = useState('chill');
   const [radiusKm, setRadiusKm] = useState(5);
   const [people, setPeople] = useState(2);
@@ -38,20 +44,6 @@ export default function PlanFormPage() {
   const [userCoords, setUserCoords] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  // Check preset from sessionStorage
-  useEffect(() => {
-    const savedDistrictId = sessionStorage.getItem('daypass_selected_district');
-    if (savedDistrictId) {
-      const found = DISTRICTS.find((d) => d.id === savedDistrictId);
-      if (found) setSelectedDistrict(found);
-    }
-
-    const presetBudget = sessionStorage.getItem('daypass_preset_budget');
-    if (presetBudget) {
-      setBudget(Number(presetBudget));
-    }
-  }, []);
 
   function handleGetLocation() {
     if (!navigator.geolocation) {

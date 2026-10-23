@@ -6,8 +6,8 @@ export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [points, setPoints] = useState(10);
-  const [recentPassId, setRecentPassId] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const recentPassId = sessionStorage.getItem('daypass_passId') || localStorage.getItem('daypass_recent_pass_id');
 
   useEffect(() => {
     // Check points
@@ -15,11 +15,6 @@ export default function Navbar() {
       .then((p) => setPoints(p.totalPoints))
       .catch(() => {});
 
-    // Check recent pass
-    const pass = sessionStorage.getItem('daypass_passId') || localStorage.getItem('daypass_recent_pass_id');
-    if (pass) {
-      setRecentPassId(pass);
-    }
   }, [location]);
 
   function handleGoPass() {

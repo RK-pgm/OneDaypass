@@ -1,53 +1,86 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { confirmOrder, getPoints, getDeviceId } from '../api';
+import { confirmOrder, getPoints, getDeviceId, updateOrderPoints, USE_MOCK } from '../api';
 
 export default function CheckoutPage() {
   const { orderId } = useParams();
+  return <CheckoutContent key={orderId} orderId={orderId} />;
+}
+
+function readStoredOrder(orderId) {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem('daypass_order') || 'null');
+    return stored?.orderId === orderId && Number.isFinite(stored.amount) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function CheckoutContent({ orderId }) {
   const navigate = useNavigate();
 
-  const [order, setOrder] = useState(null);
+  const [order, setOrder] = useState(() => readStoredOrder(orderId));
   const [points, setPoints] = useState({ totalPoints: 10, pointValueBaht: 2 });
-  const [usePoints, setUsePoints] = useState(0);
+  const [usePoints, setUsePoints] = useState(() => readStoredOrder(orderId)?.pointsUsed || 0);
+  const [applyingPoints, setApplyingPoints] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('qr'); // 'qr' | 'confirming' | 'done'
+  const canSimulatePayment = USE_MOCK || import.meta.env.DEV;
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('daypass_order');
-    if (stored) {
-      setOrder(JSON.parse(stored));
-    } else {
-      setOrder({
-        orderId: orderId || 'o_demo001',
-        amount: 598,
-        discount: 0,
-        promptpayPayload: '00020101021229370016A000000677010111011300669999999990217DEMO000000000015303764540475605802TH5910DayPass6304ABCD',
-      });
-    }
-
     getPoints(getDeviceId())
-      .then((p) => setPoints(p))
+      .then((p) => setPoints({ totalPoints: 0, pointValueBaht: 2, ...p }))
       .catch(() => {});
-  }, [orderId]);
+  }, []);
 
   if (!order) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh] text-slate-500">
-        <div className="text-center">
-          <p className="text-3xl mb-2">🔍</p>
-          <p>กำลังค้นหาข้อมูลออเดอร์...</p>
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] px-6 text-center text-slate-500">
+        <div>
+          <p className="text-4xl mb-2">🔍</p>
+          <p className="font-bold">ไม่พบคำสั่งซื้อนี้ในอุปกรณ์</p>
+          <p className="text-sm mt-1">กลับไปสร้างแผนเที่ยวใหม่เพื่อเริ่มการสั่งซื้อ</p>
+          <button className="btn-primary mt-5 px-5 py-3" onClick={() => navigate('/plan/new')}>
+            กลับไปสร้างแผน
+          </button>
         </div>
       </div>
     );
   }
 
-  const pointDiscount = usePoints * points.pointValueBaht;
-  const finalAmount = Math.max(0, order.amount - pointDiscount);
-  const qrValue = order.promptpayPayload || `PROMPTPAY:0812345678:${finalAmount}`;
+  const subtotal = Number(order.subtotal ?? (order.amount + (order.discount || 0)));
+  const pointValue = points.pointValueBaht || 2;
+  const maxPointsByOrder = Math.floor(Math.floor(subtotal * 0.3) / pointValue);
+  const pointsLimit = Math.min(points.totalPoints, maxPointsByOrder);
+  const selectedPoints = Math.min(usePoints, pointsLimit);
+  const pointDiscount = order.discount || 0;
+  const selectedDiscount = selectedPoints * pointValue;
+  const finalAmount = order.amount;
+  const qrValue = order.promptpayPayload || `DAYPASS-DEMO:${orderId}:${finalAmount}`;
+
+  async function handleApplyPoints() {
+    setError('');
+    setApplyingPoints(true);
+    try {
+      const quote = await updateOrderPoints(orderId, getDeviceId(), selectedPoints);
+      const updatedOrder = { ...order, ...quote, subtotal };
+      setOrder(updatedOrder);
+      setUsePoints(quote.pointsUsed || 0);
+      sessionStorage.setItem('daypass_order', JSON.stringify(updatedOrder));
+    } catch (err) {
+      setError(err.message || 'ใช้แต้มไม่สำเร็จ กรุณาลองใหม่');
+    } finally {
+      setApplyingPoints(false);
+    }
+  }
 
   async function handleConfirm() {
+    if (!canSimulatePayment) {
+      setError('ระบบยังไม่สามารถตรวจสอบยอดโอนจริงได้ จึงยังออกพาสจากรายการชำระเงินจริงไม่ได้');
+      return;
+    }
     setError('');
     setConfirming(true);
     setStep('confirming');
@@ -149,7 +182,7 @@ export default function CheckoutPage() {
             </div>
 
             {/* Points Slider */}
-            {points.totalPoints > 0 && (
+            {pointsLimit > 0 && (
               <div className="glass-card bg-white">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
@@ -166,8 +199,9 @@ export default function CheckoutPage() {
                   id="input-use-points"
                   type="range"
                   min={0}
-                  max={points.totalPoints}
-                  value={usePoints}
+                  max={pointsLimit}
+                  value={selectedPoints}
+                  disabled={applyingPoints || confirming || step === 'done'}
                   onChange={(e) => setUsePoints(Number(e.target.value))}
                   className="w-full h-2 rounded-full appearance-none cursor-pointer"
                 />
@@ -175,9 +209,22 @@ export default function CheckoutPage() {
                 <div className="flex justify-between items-center text-xs mt-3">
                   <span className="text-slate-400 font-medium">0 แต้ม</span>
                   <span className="text-brand-700 font-bold bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-                    เลือกใช้: {usePoints} แต้ม (-{pointDiscount}฿)
+                    เลือกใช้: {selectedPoints} แต้ม (-{selectedDiscount}฿)
                   </span>
-                  <span className="text-slate-400 font-medium">{points.totalPoints} แต้ม</span>
+                  <span className="text-slate-400 font-medium">{pointsLimit} แต้ม</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 mt-3">
+                  <span className="text-xs text-slate-500">
+                    {order.pointsUsed ? `ใช้แล้ว ${order.pointsUsed} แต้ม` : 'แต้มจะมีผลเมื่ออัปเดต QR'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleApplyPoints}
+                    disabled={applyingPoints || confirming || step === 'done' || selectedPoints === (order.pointsUsed || 0)}
+                    className="btn-sm bg-amber-50 border border-amber-200 text-amber-800 font-bold disabled:opacity-50"
+                  >
+                    {applyingPoints ? 'กำลังอัปเดต QR...' : 'นำแต้มไปใช้'}
+                  </button>
                 </div>
               </div>
             )}
@@ -226,7 +273,7 @@ export default function CheckoutPage() {
               <button
                 id="btn-confirm-payment"
                 onClick={handleConfirm}
-                disabled={confirming || step === 'done'}
+                disabled={!canSimulatePayment || confirming || step === 'done'}
                 className="btn-primary py-4 text-base font-bold shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2"
               >
                 {confirming ? (
@@ -236,12 +283,16 @@ export default function CheckoutPage() {
                   </>
                 ) : step === 'done' ? (
                   '✅ ยืนยันเรียบร้อยแล้ว!'
+                ) : canSimulatePayment ? (
+                  USE_MOCK ? '🧪 จำลองการรับพาส (DEMO)' : '✅ ยืนยันการชำระเงิน (โหมดพัฒนา)'
                 ) : (
-                  '✅ ฉันโอนเงินแล้ว (รับพาสทันที)'
+                  'ระบบยืนยันการชำระเงินยังไม่พร้อม'
                 )}
               </button>
               <p className="text-center text-slate-400 text-xs mt-2">
-                หลังกดยืนยัน ระบบจะเปิดใช้งานพาสและคูปองให้ทันที
+                {canSimulatePayment
+                  ? 'โหมดตัวอย่างเท่านั้น ปุ่มนี้ไม่ได้ตรวจสอบหรือรับเงินจริง'
+                  : 'ระบบจะเปิดปุ่มนี้เมื่อเชื่อมต่อการตรวจสอบการชำระเงินจริงแล้ว'}
               </p>
             </div>
 

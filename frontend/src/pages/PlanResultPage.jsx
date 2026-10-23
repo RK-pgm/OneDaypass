@@ -39,22 +39,25 @@ const CATEGORY_ICON = {
 
 export default function PlanResultPage() {
   const navigate = useNavigate();
-  const [plan, setPlan] = useState(null);
-  const [people, setPeople] = useState(2);
+  const [plan] = useState(() => {
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem('daypass_plan') || 'null');
+      return parsed && Array.isArray(parsed.items) && parsed.items.length ? parsed : null;
+    } catch {
+      return null;
+    }
+  });
+  const [people] = useState(() => {
+    const savedPeople = Number(sessionStorage.getItem('daypass_people'));
+    return Number.isInteger(savedPeople) && savedPeople >= 1 && savedPeople <= 10 ? savedPeople : 2;
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const mapRef = useRef(null);
 
   useEffect(() => {
-    const stored = sessionStorage.getItem('daypass_plan');
-    const storedPeople = sessionStorage.getItem('daypass_people');
-    if (!stored) {
-      navigate('/plan/new');
-      return;
-    }
-    setPlan(JSON.parse(stored));
-    if (storedPeople) setPeople(Number(storedPeople));
-  }, [navigate]);
+    if (!plan) navigate('/plan/new', { replace: true });
+  }, [navigate, plan]);
 
   if (!plan) return null;
 

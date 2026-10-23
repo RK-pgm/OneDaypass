@@ -158,6 +158,21 @@ function generatePlan(shops = [], options = {}) {
 
     if (candidates.length === 0) break; // ไม่มีร้านเหลือแล้ว
 
+    // Never pick a stop that makes the itinerary exceed the requested budget.
+    // If this slot has no affordable option, try any affordable stop in range
+    // before ending the plan early.
+    const affordableCandidates = candidates.filter(
+      (shop) => Number(shop.avgPrice) <= remainingBudget
+    );
+    if (affordableCandidates.length > 0) {
+      candidates = affordableCandidates;
+    } else {
+      candidates = shopsInRange.filter(
+        (shop) => !usedShopIds.has(shop.id) && Number(shop.avgPrice) <= remainingBudget
+      );
+      if (candidates.length === 0) break;
+    }
+
     // ให้คะแนนและเรียงลำดับร้าน:
     // - ตรงกับเวลาเปิด-ปิด (ต้องเปิด)
     // - คุมให้อยู่ในงบประมาณ (ถ้างบเกิน ให้หักคะแนนหนัก)
@@ -171,10 +186,6 @@ function generatePlan(shops = [], options = {}) {
       const isOpen = isShopOpen(shop, arrivalMins, stayDuration);
       const matchesStyle = Array.isArray(shop.tags) && shop.tags.includes(style);
 
-      // ตรวจสอบว่างบประมาณจะเกินหรือไม่
-      const overflow = Math.max(0, (accumulatedCost + shop.avgPrice) - numBudget);
-      const fitsBudget = overflow <= 50;
-
       let score = 0;
       if (isOpen) {
         score += 200;
@@ -182,15 +193,10 @@ function generatePlan(shops = [], options = {}) {
         score -= 1000; // ร้านปิด หักคะแนนรุนแรง
       }
 
-      if (fitsBudget) {
-        score += 100;
-        // ถ้างบเหลือน้อย ให้ความสำคัญกับร้านที่ราคาประหยัด
-        if (remainingBudget < 250) {
-          score += Math.max(0, 200 - shop.avgPrice);
-        }
-      } else {
-        // ถ้าราคาเกินงบ ให้หักคะแนนตามส่วนต่างที่เกิน
-        score -= (overflow * 5);
+      score += 100;
+      // ถ้างบเหลือน้อย ให้ความสำคัญกับร้านที่ราคาประหยัด
+      if (remainingBudget < 250) {
+        score += Math.max(0, 200 - shop.avgPrice);
       }
 
       if (matchesStyle) score += 30;
@@ -203,7 +209,6 @@ function generatePlan(shops = [], options = {}) {
         arrivalMins,
         stayDuration,
         isOpen,
-        fitsBudget,
         score
       };
     });
@@ -214,29 +219,6 @@ function generatePlan(shops = [], options = {}) {
     // เลือกร้านที่ดีที่สุด
     const bestChoice = evaluatedCandidates[0];
     if (!bestChoice || bestChoice.score < -400) break;
-
-    // ถ้างบหมดแล้ว และร้านนี้ไม่ใช่ร้านฟรี (ราคา > 0) ให้มองหาร้านฟรี (เช่น ศาลเจ้า, จุดถ่ายรูป) หรือหยุด
-    if (accumulatedCost >= numBudget && bestChoice.shop.avgPrice > 50) {
-      const freeChoice = evaluatedCandidates.find((c) => c.isOpen && c.shop.avgPrice === 0);
-      if (freeChoice) {
-        usedShopIds.add(freeChoice.shop.id);
-        const arrivalTimeStr = minutesToTime(freeChoice.arrivalMins);
-        currentMins = freeChoice.arrivalMins + freeChoice.stayDuration;
-        currentLat = freeChoice.shop.lat;
-        currentLng = freeChoice.shop.lng;
-
-        selectedItems.push({
-          shop: freeChoice.shop,
-          time: arrivalTimeStr,
-          durationMin: freeChoice.stayDuration,
-          distFromPrevKm: freeChoice.distFromPrev,
-          estCost: 0
-        });
-        continue;
-      } else if (selectedItems.length >= 3) {
-        break; // มีจุดเที่ยวพอแล้ว คุมงบได้
-      }
-    }
 
     const chosenShop = bestChoice.shop;
     usedShopIds.add(chosenShop.id);

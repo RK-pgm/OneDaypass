@@ -3,8 +3,8 @@
 //  เปลี่ยน USE_MOCK = false เมื่อ backend พร้อม
 // ============================================================
 
-export const USE_MOCK = true;
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? 'true').toLowerCase() !== 'false';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // ── deviceId (แทน login) ────────────────────────────────────
 export function getDeviceId() {
@@ -18,11 +18,12 @@ export function getDeviceId() {
 
 // ── helper fetch ────────────────────────────────────────────
 async function apiFetch(path, options = {}) {
+  const { headers, ...requestOptions } = options;
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options.headers },
-    ...options,
+    ...requestOptions,
+    headers: { 'Content-Type': 'application/json', ...headers },
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -370,6 +371,7 @@ const MOCK_PASS = {
   ],
   checkins: [],
   unlockedMissionIds: [],
+  completedMissionIds: [],
 };
 
 const MOCK_POINTS = { totalPoints: 10, pointValueBaht: 2 };
@@ -384,9 +386,9 @@ export async function getShops({ lat, lng, radiusKm } = {}) {
     return { shops: [] };
   }
   const params = new URLSearchParams();
-  if (lat) params.set('lat', lat);
-  if (lng) params.set('lng', lng);
-  if (radiusKm) params.set('radiusKm', radiusKm);
+  if (lat != null) params.set('lat', lat);
+  if (lng != null) params.set('lng', lng);
+  if (radiusKm != null) params.set('radiusKm', radiusKm);
   return apiFetch(`/shops?${params}`);
 }
 
@@ -411,15 +413,71 @@ export async function generatePlan(body) {
 export async function createOrder(body) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 800));
-    return { ...MOCK_ORDER, amount: body.plan.totalCostPerPerson * body.people - (body.usePoints || 0) * 2 };
+    const subtotal = Math.round(body.plan.totalCostPerPerson * body.people);
+    return {
+      ...MOCK_ORDER,
+      subtotal,
+      amount: subtotal,
+      discount: 0,
+      pointsUsed: 0,
+      deviceId: body.deviceId,
+      plan: body.plan,
+      people: body.people,
+    };
   }
   return apiFetch('/orders', { method: 'POST', body: JSON.stringify(body) });
+}
+
+/** POST /api/orders/:orderId/points */
+export async function updateOrderPoints(orderId, deviceId, usePoints) {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 250));
+    const stored = JSON.parse(sessionStorage.getItem('daypass_order') || 'null');
+    if (!stored || stored.orderId !== orderId) throw new Error('ไม่พบคำสั่งซื้อ กรุณาสร้างแผนใหม่');
+    const balance = await getPoints(deviceId);
+    const subtotal = Number(stored.subtotal ?? (stored.amount + (stored.discount || 0)));
+    const pointsUsed = Math.min(
+      usePoints,
+      balance.totalPoints,
+      Math.floor(Math.floor(subtotal * 0.3) / balance.pointValueBaht),
+    );
+    const discount = pointsUsed * balance.pointValueBaht;
+    const updated = {
+      ...stored,
+      amount: subtotal - discount,
+      subtotal,
+      discount,
+      pointsUsed,
+      // Mark this as a demonstration QR payload; it cannot collect real payment.
+      promptpayPayload: `DAYPASS-DEMO:${orderId}:${subtotal - discount}`,
+    };
+    sessionStorage.setItem('daypass_order', JSON.stringify(updated));
+    return updated;
+  }
+  return apiFetch(`/orders/${encodeURIComponent(orderId)}/points`, {
+    method: 'POST',
+    body: JSON.stringify({ deviceId, usePoints }),
+  });
 }
 
 /** 4. POST /api/orders/:orderId/confirm */
 export async function confirmOrder(orderId, slipImageName) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 600));
+    const order = JSON.parse(sessionStorage.getItem('daypass_order') || 'null');
+    if (!order || order.orderId !== orderId) throw new Error('ไม่พบคำสั่งซื้อ กรุณาสร้างแผนใหม่');
+    const pass = {
+      ...JSON.parse(JSON.stringify(MOCK_PASS)),
+      plan: order.plan || MOCK_PASS.plan,
+      people: order.people || MOCK_PASS.people,
+      coupons: (order.plan?.items || MOCK_PASS.plan.items)
+        .filter((item) => item.coupon)
+        .map((item) => ({ id: item.coupon.id, shopId: item.shopId, title: item.coupon.title, used: false })),
+      checkins: [],
+      unlockedMissionIds: [],
+      completedMissionIds: [],
+    };
+    localStorage.setItem(`daypass_pass_${pass.id}`, JSON.stringify(pass));
     return { passId: 'p_demo001', status: 'paid' };
   }
   return apiFetch(`/orders/${orderId}/confirm`, {
@@ -434,7 +492,7 @@ export async function getPass(passId) {
     await new Promise((r) => setTimeout(r, 400));
     // ดึงข้อมูลพาสจาก localStorage ก็ได้ (ถ้ามีการ update ในเซสชัน)
     const saved = localStorage.getItem(`daypass_pass_${passId}`);
-    return saved ? JSON.parse(saved) : { ...MOCK_PASS };
+    return saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(MOCK_PASS));
   }
   return apiFetch(`/passes/${passId}`);
 }
@@ -443,7 +501,16 @@ export async function getPass(passId) {
 export async function redeemCoupon(couponId, passId) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 400));
-    return { ok: true, redeemedAt: new Date().toISOString() };
+    const storageKey = `daypass_pass_${passId}`;
+    const pass = JSON.parse(localStorage.getItem(storageKey) || 'null') || JSON.parse(JSON.stringify(MOCK_PASS));
+    const coupon = pass.coupons.find((item) => item.id === couponId);
+    if (!coupon) throw new Error('ไม่พบคูปองในพาสนี้');
+    if (coupon.used) throw new Error('คูปองนี้ถูกใช้ไปแล้ว');
+    const redeemedAt = new Date().toISOString();
+    coupon.used = true;
+    coupon.redeemedAt = redeemedAt;
+    localStorage.setItem(storageKey, JSON.stringify(pass));
+    return { ok: true, redeemedAt };
   }
   return apiFetch(`/coupons/${couponId}/redeem`, {
     method: 'POST',
@@ -464,7 +531,23 @@ export async function checkin(body) {
 export async function submitMission(missionId, formData) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 800));
-    return { ok: true, pointsAwarded: 5, totalPoints: 15 };
+    const passId = formData.get('passId');
+    const deviceId = formData.get('deviceId');
+    const storageKey = `daypass_pass_${passId}`;
+    const pass = JSON.parse(localStorage.getItem(storageKey) || 'null') || JSON.parse(JSON.stringify(MOCK_PASS));
+    const completed = new Set(pass.completedMissionIds || []);
+    if (completed.has(missionId)) throw new Error('ภารกิจนี้ส่งภาพรับแต้มไปแล้วในพาสนี้');
+
+    const award = pass.plan.items.find((item) => item.mission?.id === missionId)?.mission?.points || 5;
+    completed.add(missionId);
+    pass.completedMissionIds = [...completed];
+    pass.unlockedMissionIds = (pass.unlockedMissionIds || []).filter((id) => id !== missionId);
+    localStorage.setItem(storageKey, JSON.stringify(pass));
+
+    const points = await getPoints(deviceId);
+    const totalPoints = points.totalPoints + award;
+    localStorage.setItem(`daypass_points_${deviceId}`, String(totalPoints));
+    return { ok: true, pointsAwarded: award, totalPoints };
   }
   const res = await fetch(`${BASE_URL}/missions/${missionId}/submit`, {
     method: 'POST',
@@ -478,7 +561,8 @@ export async function submitMission(missionId, formData) {
 /** 9. GET /api/points */
 export async function getPoints(deviceId) {
   if (USE_MOCK) {
-    return MOCK_POINTS;
+    const saved = localStorage.getItem(`daypass_points_${deviceId}`);
+    return { ...MOCK_POINTS, totalPoints: saved === null ? MOCK_POINTS.totalPoints : Math.max(0, Number(saved) || 0) };
   }
-  return apiFetch(`/points?deviceId=${deviceId}`);
+  return apiFetch(`/points?deviceId=${encodeURIComponent(deviceId)}`);
 }
