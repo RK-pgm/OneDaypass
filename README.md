@@ -1,0 +1,89 @@
+# 🎫 DayPass (เดย์พาส) - ตลาดน้อย กรุงเทพฯ
+> **"พาสเที่ยว 1 ย่าน ใน 1 วัน"** | แผนเที่ยวเรียงเวลาจริง + คูปองอาหารร้านเด็ด + เช็กอิน GPS + มิชชั่นสะสมแต้ม  
+> *โปรเจกต์เดโม่สำหรับการแข่งขัน Make Me Money Hackathon (สายการท่องเที่ยวและเศรษฐกิจชุมชน)*
+
+---
+
+## 🌟 จุดเด่นของ DayPass
+1. **ไม่ใช่แอปดูฟรี แต่คือสินค้าที่สร้างรายได้ (Make Me Money)**: ขายตั๋ว DayPass ราคา 199–399 บาท ที่มัดรวมสิทธิประโยชน์คุ้มค่าเกินราคา
+2. **AI-Driven Dynamic Itinerary**: เลือกระยะทาง งบประมาณ และสไตล์ (ชิล ☕ / ลุย 🏃) ระบบสร้างแผนเที่ยวเรียงเวลาจริงโดยคำนึงถึงเวลาเปิด-ปิดและระยะเดิน
+3. **PromptPay QR Code ในตัว**: ออก QR พร้อมเพย์จริง คำนวณส่วนลดแต้มสะสม และยืนยันการโอนเงินเพื่อออกพาสทันที
+4. **Voucher & Check-in Gamification**: เช็กอินด้วย GPS รัศมี 150 เมตรเพื่อปลดล็อกมิชชั่นถ่ายรูปอาหาร รับแต้มแลกส่วนลดพาสย่านต่อไป
+5. **Stage Presentation Mode**: มีสวิตช์เปิด/ปิด "โหมดจำลองพิกัดบนเวที" ช่วยให้นำเสนอเดโม่ต่อหน้าคณะกรรมการได้อย่างราบรื่น
+
+---
+
+## 🏗️ โครงสร้างโฟลเดอร์ (Project Structure)
+```
+daypass/
+├── backend/                  # Node.js + Express + SQLite Backend API
+│   ├── src/
+│   │   ├── server.js         # จุดเริ่มต้นเซิร์ฟเวอร์ & Mount API routes
+│   │   ├── db.js             # จัดการ SQLite Schema & Auto-seed
+│   │   ├── lib/
+│   │   │   └── haversine.js  # สูตรคำนวณระยะทาง GPS (กม. / ม.)
+│   │   └── routes/           # Router แยกตามโมดูล API Contract
+│   │       ├── shops.js      # GET /api/shops
+│   │       ├── plans.js      # POST /api/plans/generate
+│   │       ├── orders.js     # POST /api/orders & confirm
+│   │       ├── passes.js     # GET /api/passes/:id
+│   │       ├── coupons.js    # POST /api/coupons/:id/redeem
+│   │       ├── checkin.js    # POST /api/checkin
+│   │       ├── missions.js   # POST /api/missions/:id/submit
+│   │       └── points.js     # GET /api/points
+│   ├── uploads/              # โฟลเดอร์เก็บรูปภาพภารกิจ
+│   └── package.json
+│
+├── frontend/                 # React + Vite + Tailwind CSS + Leaflet (Mobile-First)
+│   ├── src/
+│   │   ├── components/       # Navbar, BottomNav, LeafletMap, Modals
+│   │   ├── pages/            # Home, PlanPreview, Checkout, PassDetail, MapView, MyPasses
+│   │   ├── utils/            # deviceId & pass persistence helpers
+│   │   ├── api.js            # Central API client
+│   │   ├── App.jsx           # Routing & global state
+│   │   └── index.css         # Glassmorphism & typography design system
+│   └── vite.config.js        # Vite + Tailwind v4 + API Proxy
+│
+├── seed/
+│   └── shops.json            # ข้อมูลร้านจริง 16 ร้านในตลาดน้อย พร้อมพิกัด เมนูเด็ด และคูปอง
+│
+└── docs/                     # เอกสารประกอบการแข่งขัน
+    ├── API_DOCUMENTATION.md  # รายละเอียด API Contract ครบทั้ง 9 endpoints
+    ├── PITCH_DECK.md         # สคริปต์พรีเซนต์ 3 นาที & โมเดลธุรกิจ Make Me Money
+    ├── DEMO_GUIDE.md         # ขั้นตอนการสาธิตเดโม่บนเวทีแบบไม่สะดุด
+    └── GIT_TEAM_GUIDE.md     # คู่มือการทำงานเป็นทีมด้วย Git สำหรับ 3 คน
+```
+
+---
+
+## 🚀 วิธีติดตั้งและรันระบบ (Quick Start)
+
+### 1. รันฝั่ง Backend
+```powershell
+cd backend
+npm install
+npm run dev
+```
+เซิร์ฟเวอร์จะเปิดที่ `http://localhost:5000` (ทดสอบ Health Check ได้ที่ `http://localhost:5000/api/health`)
+
+### 2. รันฝั่ง Frontend
+```powershell
+cd frontend
+npm install
+npm run dev
+```
+เปิดเบราว์เซอร์ไปที่ `http://localhost:5173/`
+
+---
+
+## 📊 ข้อมูลร้านตัวอย่าง (16 ร้านจริงในย่านตลาดน้อย)
+- **คาเฟ่ & วินเทจ**: Hong Sieng Kong, Mother Roaster, Patina Bangkok, Vanich House, Citizens Tea Canteen, Timo & Tintin
+- **สตรีตฟู้ด & ของคาว**: เฟิงจู เกี๊ยวซ่าหน้าเปิด, เป็ดพะโล้นายหนับ, ก๋วยเตี๋ยวรู ตลาดน้อย (เจ๊บ๊วย), บ้านริมน้ำ ตลาดน้อย
+- **ของหวาน & เบเกอรี่**: กะหรี่ปั๊บคุณปุ๊, ขนมเปี๊ยะแต้เล่าจิ้นเส็ง
+- **จุดถ่ายรูป & วัฒนธรรม**: ศาลเจ้าโจวซือกง (200 ปี), ตรอกเซียงกง & ซากรถเต่าคลาสสิก, โบสถ์กาลหว่าร์, River City Bangkok
+
+---
+
+## 🎓 ทีมผู้พัฒนา
+- **นักเรียนทีม 3 คน**: แบ่งงาน Front-end, Back-end Core, และ Business Logic/Algorithms
+- ที่ปรึกษา: อาจารย์ AI Assistant (Google DeepMind)
