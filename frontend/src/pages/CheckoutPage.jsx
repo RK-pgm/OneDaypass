@@ -1,254 +1,283 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { QRCodeSVG } from 'qrcode.react';
-import { confirmOrder, getPoints, getDeviceId } from '../api';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft,
+  QrCode,
+  Coins,
+  ShieldCheck,
+  CheckCircle2,
+  Copy,
+  Check,
+  Sparkles,
+  AlertCircle
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { createOrder, confirmOrder, getPoints } from '../api';
+import { getDeviceId, savePassId } from '../utils/device';
 
-export default function CheckoutPage() {
-  const { orderId } = useParams();
+export default function CheckoutPage({ plan, people = 1, onPassPurchased }) {
   const navigate = useNavigate();
+  const deviceId = getDeviceId();
+
+  const [availablePoints, setAvailablePoints] = useState(0);
+  const [pointValueBaht, setPointValueBaht] = useState(2);
+  const [usePoints, setUsePoints] = useState(0);
 
   const [order, setOrder] = useState(null);
-  const [points, setPoints] = useState({ totalPoints: 10, pointValueBaht: 2 });
-  const [usePoints, setUsePoints] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
-  const [error, setError] = useState('');
-  const [step, setStep] = useState('qr'); // 'qr' | 'confirming' | 'done'
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
 
+  // Fetch available points first
   useEffect(() => {
-    const stored = sessionStorage.getItem('daypass_order');
-    if (stored) {
-      setOrder(JSON.parse(stored));
-    } else {
-      setOrder({
-        orderId: orderId || 'o_demo001',
-        amount: 598,
-        discount: 0,
-        promptpayPayload: '00020101021229370016A000000677010111011300669999999990217DEMO000000000015303764540475605802TH5910DayPass6304ABCD',
-      });
+    getPoints(deviceId)
+      .then((data) => {
+        setAvailablePoints(data.totalPoints || 0);
+        setPointValueBaht(data.pointValueBaht || 2);
+      })
+      .catch((err) => console.error('Failed to get points', err));
+  }, [deviceId]);
+
+  // Create order whenever usePoints or plan changes
+  useEffect(() => {
+    if (!plan) return;
+
+    setLoading(true);
+    setError(null);
+
+    createOrder({
+      deviceId,
+      plan,
+      people,
+      usePoints
+    })
+      .then((orderData) => {
+        setOrder(orderData);
+      })
+      .catch((err) => {
+        console.error(err);
+        setError(err.message || 'ไม่สามารถสร้างออเดอร์ได้');
+      })
+      .finally(() => setLoading(false));
+  }, [plan, people, usePoints, deviceId]);
+
+  // Handle mock payment confirmation
+  const handleConfirmPayment = async () => {
+    if (!order) return;
+
+    setConfirming(true);
+    setError(null);
+
+    try {
+      const res = await confirmOrder(order.orderId);
+      if (res && res.passId) {
+        // Trigger celebratory confetti
+        confetti({
+          particleCount: 120,
+          spread: 70,
+          origin: { y: 0.6 }
+        });
+
+        savePassId(res.passId);
+        if (onPassPurchased) onPassPurchased(res.passId);
+
+        // Transition to active DayPass view
+        setTimeout(() => {
+          navigate(`/pass/${res.passId}`);
+        }, 800);
+      }
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'เกิดข้อผิดพลาดในการยืนยันคำสั่งซื้อ');
+      setConfirming(false);
     }
+  };
 
-    getPoints(getDeviceId())
-      .then((p) => setPoints(p))
-      .catch(() => {});
-  }, [orderId]);
+  const handleCopyPromptPay = () => {
+    navigator.clipboard.writeText('0812345678');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
-  if (!order) {
+  if (!plan) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-[60vh] text-slate-500">
-        <div className="text-center">
-          <p className="text-3xl mb-2">🔍</p>
-          <p>กำลังค้นหาข้อมูลออเดอร์...</p>
-        </div>
+      <div className="max-w-md mx-auto px-4 pt-16 text-center space-y-4">
+        <h2 className="text-lg font-bold text-white">ไม่พบคำสั่งซื้อ</h2>
+        <button
+          onClick={() => navigate('/')}
+          className="px-5 py-2.5 rounded-2xl bg-indigo-600 text-white text-xs font-semibold"
+        >
+          กลับหน้าหลัก
+        </button>
       </div>
     );
   }
 
-  const pointDiscount = usePoints * points.pointValueBaht;
-  const finalAmount = Math.max(0, order.amount - pointDiscount);
-  const qrValue = order.promptpayPayload || `PROMPTPAY:0812345678:${finalAmount}`;
-
-  async function handleConfirm() {
-    setError('');
-    setConfirming(true);
-    setStep('confirming');
-    try {
-      const result = await confirmOrder(orderId);
-      sessionStorage.setItem('daypass_passId', result.passId);
-      localStorage.setItem('daypass_recent_pass_id', result.passId);
-      setStep('done');
-      setTimeout(() => navigate(`/pass/${result.passId}`), 1200);
-    } catch (err) {
-      setError(err.message || 'เกิดข้อผิดพลาดในการตรวจสอบ');
-      setStep('qr');
-    } finally {
-      setConfirming(false);
-    }
-  }
+  const grossTotal = people * 199;
+  const maxDiscountAllowed = Math.floor(grossTotal * 0.3);
+  const maxUsablePoints = Math.min(availablePoints, Math.floor(maxDiscountAllowed / pointValueBaht));
 
   return (
-    <div className="flex-1 flex flex-col py-6 sm:py-10 animate-fade-in">
-      <div className="page-container max-w-4xl">
-        
-        {/* Header navigation */}
-        <div className="flex items-center gap-3 mb-6 sm:mb-8 pb-4 border-b border-slate-200">
-          <button
-            onClick={() => navigate(-1)}
-            className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-700 hover:text-slate-900 hover:bg-slate-100 shadow-sm active:scale-95 transition-all"
-            aria-label="ย้อนกลับ"
-          >
-            ←
-          </button>
+    <div className="pb-28 max-w-md mx-auto px-4 pt-3 space-y-4 animate-fade-in">
+      {/* Top Nav */}
+      <button
+        onClick={() => navigate(-1)}
+        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>ย้อนกลับไปดูแผน</span>
+      </button>
+
+      {/* Header */}
+      <div className="space-y-1">
+        <h1 className="text-xl font-extrabold text-white tracking-tight">
+          ชำระเงิน DayPass
+        </h1>
+        <p className="text-xs text-slate-400">
+          สแกน QR PromptPay เพื่อออกบัตรพาสและรับคูปองอาหารทันที
+        </p>
+      </div>
+
+      {/* Order Summary & Points Reducer */}
+      <div className="glass-panel rounded-3xl p-5 border border-slate-700/80 space-y-4 shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">ชำระเงินผ่าน PromptPay</h1>
-            <p className="text-slate-500 text-xs sm:text-sm">สแกนจ่ายได้ทุกแอปพลิเคชันธนาคาร รับพาสทันที</p>
+            <div className="text-xs font-bold text-white truncate max-w-[220px]">
+              {plan.title}
+            </div>
+            <div className="text-[11px] text-slate-400">
+              สำหรับ {people} คน • รวมคูปองอาหาร {plan.items.filter((i) => i.coupon).length} ใบ
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-sm font-bold text-white">฿{grossTotal}</span>
           </div>
         </div>
 
-        {/* 2-Column Responsive Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
-          
-          {/* Left Column: QR Code & PromptPay Info */}
-          <div className="md:col-span-6 flex flex-col items-center">
-            <div className="glass-card w-full flex flex-col items-center p-6 border-slate-200 bg-white shadow-xl shadow-slate-200/60">
-              
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs uppercase font-bold tracking-wider text-slate-700">
-                  พร้อมเพย์ (PromptPay QR)
-                </span>
-              </div>
-
-              {/* QR Container */}
-              <div className="bg-white p-5 rounded-2xl shadow-xl shadow-slate-200/80 border-2 border-slate-200 flex flex-col items-center">
-                <QRCodeSVG
-                  value={qrValue}
-                  size={210}
-                  bgColor="#ffffff"
-                  fgColor="#0f172a"
-                  level="M"
-                />
-                <div className="mt-3 flex items-center gap-1.5 text-slate-900 text-xs font-bold font-mono">
-                  <span>📱 สแกนเพื่อจ่าย {finalAmount.toLocaleString()} บาท</span>
-                </div>
-              </div>
-
-              <div className="text-center mt-5">
-                <p className="text-slate-400 text-xs font-medium">หมายเลขอ้างอิง PromptPay</p>
-                <p className="text-slate-900 font-mono font-bold text-lg tracking-widest mt-0.5">
-                  089-XXX-XXXX
-                </p>
-                <p className="text-brand-600 font-semibold text-xs mt-1">
-                  ชื่อบัญชี: บจก. เดย์พาส (ไทยแลนด์)
-                </p>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
-                💡 สแกนแล้วกดปุ่ม "ฉันโอนเงินแล้ว" ด้านล่าง
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column: Order Breakdown & Points Discount */}
-          <div className="md:col-span-6 flex flex-col gap-5">
-            
-            {/* Amount card */}
-            <div className="glass-card p-6 text-center md:text-left bg-gradient-to-br from-brand-50 via-white to-amber-50 border-brand-200">
-              <span className="text-slate-500 text-xs uppercase tracking-wider font-bold">ยอดชำระสุทธิ</span>
-              <div className="flex items-baseline justify-center md:justify-start gap-2 mt-1">
-                <span className="text-4xl sm:text-5xl font-extrabold text-brand-600 font-mono">
-                  {finalAmount.toLocaleString()}
-                </span>
-                <span className="text-slate-600 font-bold text-base">บาท</span>
-              </div>
-              {pointDiscount > 0 && (
-                <div className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold">
-                  <span>🎉</span>
-                  <span>ใช้ {usePoints} แต้ม ลดไป {pointDiscount} บาท</span>
-                </div>
-              )}
-            </div>
-
-            {/* Points Slider */}
-            {points.totalPoints > 0 && (
-              <div className="glass-card bg-white">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
-                    <span>🌟</span>
-                    <span>ใช้แต้มสะสมแลกส่วนลด</span>
-                  </span>
-                  <span className="text-xs text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    มี {points.totalPoints} แต้ม (= {points.totalPoints * points.pointValueBaht}฿)
-                  </span>
-                </div>
-                <p className="text-slate-500 text-xs mb-3 font-medium">1 แต้ม = 2 บาท ใช้ลดค่าพาสได้ทันที</p>
-                
-                <input
-                  id="input-use-points"
-                  type="range"
-                  min={0}
-                  max={points.totalPoints}
-                  value={usePoints}
-                  onChange={(e) => setUsePoints(Number(e.target.value))}
-                  className="w-full h-2 rounded-full appearance-none cursor-pointer"
-                />
-
-                <div className="flex justify-between items-center text-xs mt-3">
-                  <span className="text-slate-400 font-medium">0 แต้ม</span>
-                  <span className="text-brand-700 font-bold bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
-                    เลือกใช้: {usePoints} แต้ม (-{pointDiscount}฿)
-                  </span>
-                  <span className="text-slate-400 font-medium">{points.totalPoints} แต้ม</span>
-                </div>
-              </div>
-            )}
-
-            {/* Order Details list */}
-            <div className="glass-card bg-white">
-              <span className="text-slate-400 text-xs uppercase tracking-wider font-bold block mb-3">
-                รายละเอียดออเดอร์
+        {/* Points Discount Slider */}
+        {availablePoints > 0 ? (
+          <div className="space-y-2 bg-indigo-950/40 rounded-2xl p-3.5 border border-indigo-500/20">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-indigo-300 flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-amber-400" />
+                <span>ใช้แต้มสะสมแลกส่วนลด</span>
               </span>
-              <div className="space-y-2.5 text-xs sm:text-sm">
-                <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">รหัสออเดอร์</span>
-                  <span className="text-slate-900 font-mono font-bold">{orderId}</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">ราคาพาส</span>
-                  <span className="text-slate-900 font-bold">{order.amount} บาท</span>
-                </div>
-                <div className="flex justify-between py-1.5 border-b border-slate-100">
-                  <span className="text-slate-600">ส่วนลดจากแต้ม</span>
-                  <span className="text-emerald-600 font-bold">{pointDiscount > 0 ? `-${pointDiscount} บาท` : '—'}</span>
-                </div>
-                <div className="flex justify-between py-1.5">
-                  <span className="text-slate-600">สถานะ</span>
-                  <span className="text-amber-600 font-bold">รอการชำระเงิน</span>
-                </div>
-              </div>
+              <span className="text-amber-400 font-bold">
+                -{usePoints * pointValueBaht} บาท ({usePoints} แต้ม)
+              </span>
             </div>
 
-            {error && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs text-center font-medium">
-                ⚠️ {error}
-              </div>
-            )}
+            <input
+              type="range"
+              min="0"
+              max={maxUsablePoints}
+              step="1"
+              value={usePoints}
+              onChange={(e) => setUsePoints(Number(e.target.value))}
+              className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-400"
+            />
 
-            {step === 'done' && (
-              <div className="glass-card border-emerald-300 bg-emerald-50 text-emerald-800 text-center py-4 animate-bounce-in shadow-md">
-                <div className="text-2xl mb-1">🎉</div>
-                <p className="font-extrabold text-base">ชำระเงินสำเร็จแล้ว!</p>
-                <p className="text-xs text-slate-600 mt-1">กำลังพาคุณไปยังหน้าพาสดิจิทัล...</p>
-              </div>
-            )}
-
-            {/* Confirm Button */}
-            <div className="mt-2">
-              <button
-                id="btn-confirm-payment"
-                onClick={handleConfirm}
-                disabled={confirming || step === 'done'}
-                className="btn-primary py-4 text-base font-bold shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2"
-              >
-                {confirming ? (
-                  <>
-                    <span className="animate-spin text-lg">⟳</span>
-                    <span>กำลังตรวจสอบยอดโอน...</span>
-                  </>
-                ) : step === 'done' ? (
-                  '✅ ยืนยันเรียบร้อยแล้ว!'
-                ) : (
-                  '✅ ฉันโอนเงินแล้ว (รับพาสทันที)'
-                )}
-              </button>
-              <p className="text-center text-slate-400 text-xs mt-2">
-                หลังกดยืนยัน ระบบจะเปิดใช้งานพาสและคูปองให้ทันที
-              </p>
+            <div className="flex justify-between text-[10px] text-slate-400">
+              <span>คุณมี {availablePoints} แต้ม</span>
+              <span>ใช้ได้สูงสุด {maxUsablePoints} แต้ม (-฿{maxUsablePoints * pointValueBaht})</span>
             </div>
-
           </div>
+        ) : (
+          <div className="bg-slate-900/60 rounded-2xl p-3 border border-slate-800/80 text-xs text-slate-400 flex items-center gap-2">
+            <Coins className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>
+              คุณยังไม่มีแต้มสะสม ทำมิชชั่นในทริปนี้เพื่อรับแต้มใช้เป็นส่วนลดพาสครั้งถัดไป!
+            </span>
+          </div>
+        )}
 
+        {/* Final Net Amount */}
+        <div className="pt-1 flex items-center justify-between">
+          <span className="text-xs font-semibold text-slate-300">ยอดชำระสุทธิ</span>
+          <span className="text-2xl font-black text-amber-400">
+            ฿{order ? order.amount : grossTotal}
+          </span>
+        </div>
+      </div>
+
+      {/* PromptPay QR Section */}
+      <div className="glass-panel rounded-3xl p-6 border border-slate-700/80 text-center space-y-4 shadow-xl relative overflow-hidden">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-semibold">
+          <QrCode className="w-4 h-4 text-indigo-400" />
+          <span>PromptPay QR</span>
         </div>
 
+        {/* QR Code Container */}
+        <div className="mx-auto w-56 h-56 bg-white p-3 rounded-2xl shadow-xl flex items-center justify-center">
+          {loading ? (
+            <div className="flex flex-col items-center gap-2 text-slate-500 text-xs">
+              <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>กำลังสร้าง QR Code...</span>
+            </div>
+          ) : order && order.qrDataUrl ? (
+            <img
+              src={order.qrDataUrl}
+              alt="PromptPay QR Code"
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="text-xs text-rose-500">สร้าง QR ไม่สำเร็จ</div>
+          )}
+        </div>
+
+        {/* PromptPay Info */}
+        <div className="bg-slate-900/80 rounded-2xl p-3 border border-slate-800 space-y-1.5">
+          <div className="text-[11px] text-slate-400">
+            สแกนจ่ายผ่านแอปพลิเคชันธนาคารทุกแห่ง หรือโอนไปที่
+          </div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="font-mono text-sm font-bold text-white tracking-wider">
+              081-234-5678
+            </span>
+            <button
+              onClick={handleCopyPromptPay}
+              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs flex items-center gap-1"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copied ? 'คัดลอกแล้ว' : 'คัดลอก'}</span>
+            </button>
+          </div>
+          <div className="text-[10px] text-slate-500">
+            ชื่อบัญชี: DayPass Official (บริษัท เดย์พาส จำกัด)
+          </div>
+        </div>
+
+        {error && (
+          <div className="p-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+            {error}
+          </div>
+        )}
+
+        {/* "ฉันโอนแล้ว" Confirmation Button */}
+        <div className="space-y-2 pt-2">
+          <button
+            onClick={handleConfirmPayment}
+            disabled={confirming || loading}
+            className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-emerald-400 to-emerald-500 hover:from-emerald-400 hover:to-emerald-400 text-slate-950 font-extrabold text-base flex items-center justify-center gap-2 shadow-xl shadow-emerald-500/25 transition-transform hover:scale-101 active:scale-99 disabled:opacity-50"
+          >
+            {confirming ? (
+              <>
+                <div className="w-5 h-5 border-3 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                <span>กำลังออกบัตร DayPass...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" />
+                <span>ฉันโอนเงินแล้ว (ออกพาสทันที)</span>
+              </>
+            )}
+          </button>
+
+          <p className="text-[10px] text-slate-400">
+            ⚡ เดโม่สำหรับการแข่งขัน: กดปุ่มเพื่อยืนยันและออกพาสพร้อมคูปองได้ทันที
+          </p>
+        </div>
       </div>
     </div>
   );
