@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generatePlan, getDeviceId, DISTRICTS } from '../api';
-import { PROVINCES, REGIONS, getAmphoes, DISTRICT_DESTINATIONS, detectLocationFromGPS } from '../data/locations';
+import { generatePlan, getDeviceId } from '../api';
+import { PROVINCES, REGIONS, getAmphoes, getDestinations, DISTRICT_DESTINATIONS, detectLocationFromGPS } from '../data/locations';
 
 const BUDGET_OPTIONS = [
   { value: 149, label: '149', sub: 'ประหยัด', badge: 'สบายกระเป๋า' },
@@ -131,7 +131,7 @@ export default function PlanFormPage() {
 
   // Filtered lists
   const availableAmphoes = getAmphoes(selectedProvince);
-  const availableDistrictsInProvince = DISTRICT_DESTINATIONS.filter((d) => d.provinceId === selectedProvince);
+  const availableDistrictsInProvince = getDestinations(selectedProvince);
 
   // 2. Budget State
   const [budget, setBudget] = useState(() => {
@@ -192,9 +192,10 @@ export default function PlanFormPage() {
     if (amphoes.length > 0) {
       setSelectedAmphoe(amphoes[0].id);
     }
-    const districts = DISTRICT_DESTINATIONS.filter((d) => d.provinceId === prov);
+    const districts = getDestinations(prov, amphoes[0]?.id);
     if (districts.length > 0) {
       setSelectedDistrict(districts[0]);
+      setSelectedAmphoe(districts[0].amphoeId || amphoes[0]?.id || '');
     }
   }
 
@@ -202,7 +203,7 @@ export default function PlanFormPage() {
   function handleAmphoeChange(e) {
     const amp = e.target.value;
     setSelectedAmphoe(amp);
-    const matched = DISTRICT_DESTINATIONS.find((d) => d.provinceId === selectedProvince && d.amphoeId === amp);
+    const matched = getDestinations(selectedProvince, amp)[0];
     if (matched) {
       setSelectedDistrict(matched);
     }
@@ -215,11 +216,13 @@ export default function PlanFormPage() {
       const loc = await detectLocationFromGPS();
       setUserCoords({ lat: loc.lat, lng: loc.lng });
       // If the detected province has destinations, select it!
-      const provDestinations = DISTRICT_DESTINATIONS.filter((d) => d.provinceId === loc.province);
+      const provDestinations = getDestinations(loc.province);
       if (provDestinations.length > 0) {
         setSelectedProvince(loc.province);
         const amphoes = getAmphoes(loc.province);
-        if (amphoes.length > 0) setSelectedAmphoe(amphoes[0].id);
+        if (amphoes.length > 0) {
+          setSelectedAmphoe(provDestinations[0].amphoeId || amphoes[0].id);
+        }
         setSelectedDistrict(provDestinations[0]);
       }
     } catch (err) {
@@ -240,7 +243,9 @@ export default function PlanFormPage() {
 
       const planRequest = {
         districtId: selectedDistrict.id,
+        districtName: selectedDistrict.name,
         provinceId: selectedProvince,
+        provinceName: PROVINCES.find((item) => item.id === selectedProvince)?.name || selectedProvince,
         amphoeId: selectedAmphoe,
         budget: activeBudget,
         style,

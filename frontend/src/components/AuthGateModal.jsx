@@ -82,7 +82,8 @@ export default function AuthGateModal({ onAuthenticated }) {
 
       // Award welcome bonus points if new register
       if (!isLoginMode) {
-        await addPoints(getDeviceId(), 50, 'welcome_bonus', 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨').catch(() => {});
+        await addPoints(getDeviceId(), 50, 'welcome_bonus', 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨')
+          .catch((error) => console.error('Welcome points could not be added:', error));
       }
 
       setIsOpen(false);

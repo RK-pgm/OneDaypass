@@ -1,0 +1,330 @@
+{
+  "thonglor": {
+    "src": "/images/destinations/thonglor.JPG",
+    "alt": "Photo of ทองหล่อ - เอกมัย",
+    "author": "Sry85",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ASoi_Thong_Lor_26_Sep_2012.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "phranakorn": {
+    "src": "/images/destinations/phranakorn.jpg",
+    "alt": "Photo of พระนคร - เสาชิงช้า",
+    "author": "KOSIN SUKHUM",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AGiant_Swing_Bangkok_Thailand.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "banthatthong": {
+    "src": "/images/destinations/banthatthong.jpg",
+    "alt": "Photo of บรรทัดทอง - สามย่าน",
+    "author": "Syced",
+    "license": "CC0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ASam_Yan_2.jpg",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "silom": {
+    "src": "/images/destinations/silom.jpg",
+    "alt": "Photo of สีลม - สาทร",
+    "author": "Bjoertvedt",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ASilom_-_MahaNakhon_IMG_7413.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "nimman": {
+    "src": "/images/destinations/nimman.JPG",
+    "alt": "Photo of นิมมานเหมินทร์",
+    "author": "Takeaway",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AEspresso_macchiato_Chiang_Mai.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "onnut": {
+    "src": "/images/destinations/onnut.jpg",
+    "alt": "Photo of อ่อนนุช - ปุณณวิถี",
+    "author": "My Train Pix",
+    "license": "CC BY-SA 2.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ABTS_at_On_Nut_(5745369719).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0"
+  },
+  "chatuchak": {
+    "src": "/images/destinations/chatuchak.JPG",
+    "alt": "Photo of จตุจักร - สวนรถไฟ",
+    "author": "Deror Avi",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AChatuchak_Weekend_Market_P1100750.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "oldcity_cm": {
+    "src": "/images/destinations/oldcity_cm.JPG",
+    "alt": "Photo of คูเมืองเก่าเชียงใหม่",
+    "author": "Takeaway",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ATapae_gate_Chiang_Mai_01.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "pattaya": {
+    "src": "/images/destinations/pattaya.jpg",
+    "alt": "Photo of พัทยา - หาดจอมเทียน",
+    "author": "PattayaPatrol",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ADFC_1551_Silhouetted_figures_stand_beneath_an_arched_seaside_pavilion_at_sunset_framed_against_the_calm_ocean.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "bangsaen": {
+    "src": "/images/destinations/bangsaen.JPG",
+    "alt": "Photo of บางแสน - เขาสามมุข",
+    "author": "atreyu",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ABang_Saen_01.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "oldphuket": {
+    "src": "/images/destinations/oldphuket.jpg",
+    "alt": "Photo of ภูเก็ตเมืองเก่า (Old Phuket Town)",
+    "author": "Christophe95",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ABuildings_in_Old_Phuket_Town.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "ayutthaya_old": {
+    "src": "/images/destinations/ayutthaya_old.jpg",
+    "alt": "Photo of เกาะเมืองอยุธยา",
+    "author": "JJ Harrison",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWat_Chai_Watthanaram_-_Ayutthaya.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "kangsadan": {
+    "src": "/images/destinations/kangsadan.JPG",
+    "alt": "Photo of กังสดาล - มข.",
+    "author": "Xiengyod",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ASithan_Gate%2C_Khon_Kaen_University.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "maerim": {
+    "src": "/images/destinations/maerim.jpg",
+    "alt": "Photo of แม่ริม - ม่อนแจ่ม",
+    "author": "::::=UT=::::",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3A%E0%B8%94%E0%B8%AD%E0%B8%A2%E0%B8%A1%E0%B9%88%E0%B8%AD%E0%B8%99%E0%B9%81%E0%B8%88%E0%B9%88%E0%B8%A1_%E0%B8%95%E0%B8%B3%E0%B8%9A%E0%B8%A5_%E0%B9%81%E0%B8%A1%E0%B9%88%E0%B9%81%E0%B8%A3%E0%B8%A1_%E0%B8%88%E0%B8%B1%E0%B8%87%E0%B8%AB%E0%B8%A7%E0%B8%B1%E0%B8%94_%E0%B9%80%E0%B8%8A%E0%B8%B5%E0%B8%A2%E0%B8%87%E0%B9%83%E0%B8%AB%E0%B8%A1%E0%B9%88_%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B9%80%E0%B8%97%E0%B8%A8%E0%B9%84%E0%B8%97%E0%B8%A2_-_panoramio.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "hatyai_central": {
+    "src": "/images/destinations/hatyai_central.jpg",
+    "alt": "Photo of หาดใหญ่ - ตลาดกิมหยง",
+    "author": "Supanut Arunoprayote",
+    "license": "CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AView_of_Hat_Yai_City_(II).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "rawai_phuket": {
+    "src": "/images/destinations/rawai_phuket.jpg",
+    "alt": "Photo of ราไวย์ - แหลมพรหมเทพ",
+    "author": "Mikhail Deynekin",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3APromthep_Cape_-_panoramio.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "kanchanaburi_river": {
+    "src": "/images/destinations/kanchanaburi_river.JPG",
+    "alt": "Photo of สะพานข้ามแม่น้ำแคว - ริมน้ำ",
+    "author": "PumpkinSky",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ABridge_on_the_River_Kwai_-_tourist_plaza.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "huahin_beach": {
+    "src": "/images/destinations/huahin_beach.jpg",
+    "alt": "Photo of หัวหิน - ตลาดโต้รุ่ง",
+    "author": "Elmschrat",
+    "license": "CC0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3A01_Hua_Hin_Beach.jpg",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "siam_ratchaprasong": {
+    "src": "/images/destinations/siam_ratchaprasong.jpg",
+    "alt": "Photo of สยาม - ราชประสงค์",
+    "author": "Vyacheslav Argenberg",
+    "license": "CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ABangkok_skyline%2C_BTS_Skytrain%2C_Bangkok%2C_Thailand.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "pakchong_khaoyai": {
+    "src": "/images/destinations/pakchong_khaoyai.JPG",
+    "alt": "Photo of ปากช่อง - เขาใหญ่",
+    "author": "Mammalwatcher",
+    "license": "CC0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKhao_Yai_National_Park_Landscape.JPG",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "pranburi_beach": {
+    "src": "/images/destinations/pranburi_beach.JPG",
+    "alt": "Photo of ปากน้ำปราณ - วนอุทยานปราณบุรี",
+    "author": "LigerCommon",
+    "license": "Public domain",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKoa-kalok.JPG",
+    "licenseUrl": "https://commons.wikimedia.org/wiki/File%3AKoa-kalok.JPG"
+  },
+  "wanglang_thonburi": {
+    "src": "/images/destinations/wanglang_thonburi.jpg",
+    "alt": "Photo of วังหลัง - ท่าเตียน",
+    "author": "Reversemos.sapanaht",
+    "license": "CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWang_Lang_Road_at_Twilight.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "banglamphu_khaosan": {
+    "src": "/images/destinations/banglamphu_khaosan.JPG",
+    "alt": "Photo of บางลำพู - ถนนข้าวสาร",
+    "author": "Shoestring",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKhao_San_Road%2C_Bangkok%2C_Thailand.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "sattahip_bangsaray": {
+    "src": "/images/destinations/sattahip_bangsaray.jpg",
+    "alt": "Photo of บางเสร่ - สัตหีบ",
+    "author": "mohigan",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AUnnamed_Road%2C_Tambon_Bang_Sa-re%2C_Amphoe_Sattahip%2C_Chang_Wat_Chon_Buri_20250%2C_Thailand_-_panoramio.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "sankamphaeng": {
+    "src": "/images/destinations/sankamphaeng.jpg",
+    "alt": "Photo of สันกำแพง - ร่มบ่อสร้าง",
+    "author": "FredTC",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWat_Rong_Tham_Samakkhi_Wihan_IMG20240307111147a.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "maekampong": {
+    "src": "/images/destinations/maekampong.jpg",
+    "alt": "Photo of แม่กำปอง - แม่ออน",
+    "author": "Iudexvivorum",
+    "license": "CC0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWat_Khantha_Phrueksa_-_2017-07-09_(001).jpg",
+    "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en"
+  },
+  "doichang_cr": {
+    "src": "/images/destinations/doichang_cr.jpeg",
+    "alt": "Photo of ดอยช้าง - แดนสวรรค์กาแฟ",
+    "author": "Ian Dugdale",
+    "license": "CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AOchlodes_siva_-_Ian_Dugdale_-_548269182.jpeg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "rimkok_cr": {
+    "src": "/images/destinations/rimkok_cr.jpg",
+    "alt": "Photo of ริมกก - ตัวเมืองเชียงราย",
+    "author": "Vyacheslav Argenberg",
+    "license": "CC BY 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKok_River%2C_Chiang_Rai%2C_Thailand.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by/4.0"
+  },
+  "patong_beach": {
+    "src": "/images/destinations/patong_beach.jpg",
+    "alt": "Photo of หาดป่าตอง - ถนนบางลา",
+    "author": "Wolfgang Holzem",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3APatong_Beach_(1).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "city_nan": {
+    "src": "/images/destinations/city_nan.jpg",
+    "alt": "Photo of ตัวเมืองน่าน - วัดภูมินทร์",
+    "author": "Takeaway",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3A2013_Wat_Phumin_Nan.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "kohsichang": {
+    "src": "/images/destinations/kohsichang.JPG",
+    "alt": "Photo of เกาะสีชัง - ช่องเขาขาด",
+    "author": "Ruslik0",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKo_Sichang_02.JPG",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "samui_bophut": {
+    "src": "/images/destinations/samui_bophut.jpg",
+    "alt": "Photo of สมุย - ฟิชเชอร์แมนวิลเลจ",
+    "author": "Supphachoke Suntiwic…",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AFisherman_village_-_panoramio.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "pua_nan": {
+    "src": "/images/destinations/pua_nan.jpg",
+    "alt": "Photo of อ.ปัว - ทุ่งนาดอยภูคา",
+    "author": "Takeaway",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3A2014_1120_Pua_District_dirt_road.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "aonang_railay": {
+    "src": "/images/destinations/aonang_railay.jpg",
+    "alt": "Photo of อ่าวนาง - หาดไร่เลย์",
+    "author": "kallerna",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ARailay_Beach_5.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "amphawa_floating": {
+    "src": "/images/destinations/amphawa_floating.jpg",
+    "alt": "Photo of ตลาดน้ำอัมพวา - ริมคลอง",
+    "author": "Rangan Datta Wiki",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AAmphawa_Floating_Market_7.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "kohsamed_rayong": {
+    "src": "/images/destinations/kohsamed_rayong.jpg",
+    "alt": "Photo of เกาะเสม็ด - หาดทรายแก้ว",
+    "author": "Eltorodeoro",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AKoh_Samet%2CWong_Duean_Beach.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "kohkret_non": {
+    "src": "/images/destinations/kohkret_non.jpg",
+    "alt": "Photo of เกาะเกร็ด - เครื่องปั้นดินเผา",
+    "author": "Manoonp",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWat_Poramaiyikawat.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "phrapathom_np": {
+    "src": "/images/destinations/phrapathom_np.jpg",
+    "alt": "Photo of องค์พระปฐมเจดีย์ - ตลาดโต้รุ่ง",
+    "author": "NATNAREE K.",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3APhra_Pathom_Chedi%2C_Nakhon_Pathom_Province%2C_Thailand.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "nongprajak_udon": {
+    "src": "/images/destinations/nongprajak_udon.jpg",
+    "alt": "Photo of หนองประจักษ์ - เป็ดยักษ์",
+    "author": "gewien",
+    "license": "CC BY-SA 3.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ANong_Prajak_Park_Pano_-_panoramio.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0"
+  },
+  "chaam_beach": {
+    "src": "/images/destinations/chaam_beach.jpg",
+    "alt": "Photo of หาดชะอำ - สะพานปลา",
+    "author": "Slyronit",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3ACha-Am_Beach_10.jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  },
+  "thungsrimeuang_ubon": {
+    "src": "/images/destinations/thungsrimeuang_ubon.jpg",
+    "alt": "Photo of ทุ่งศรีเมือง - ริมแม่น้ำมูล",
+    "author": "Xiengyod~commonswiki",
+    "license": "CC BY-SA 4.0",
+    "sourceUrl": "https://commons.wikimedia.org/wiki/File%3AWat_Thung_Sri_Mueang%2C_Ubon_Ratchathani_-_statue_of_Phra_Ariyavansacarya_(Sui).jpg",
+    "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0"
+  }
+}

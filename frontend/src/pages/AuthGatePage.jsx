@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PROVINCES, REGIONS, getAmphoes, detectLocationFromGPS } from '../data/locations';
-import { addPoints, getDeviceId } from '../api';
+import { addPoints, getDeviceId, loginAccount, registerAccount } from '../api';
 
 function getSavedAccounts() {
   try {
@@ -32,11 +32,14 @@ export default function AuthGatePage({ onAuthenticated }) {
   const [province, setProvince] = useState('bangkok');
   const [amphoe, setAmphoe] = useState('samphanthawong');
   const [tambon, setTambon] = useState('ตลาดน้อย');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Login form states
   const [loginPhoneOrEmail, setLoginPhoneOrEmail] = useState('');
-  const [loginNickname, setLoginNickname] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [legacyProfileAvailable, setLegacyProfileAvailable] = useState(false);
 
   // Saved accounts list
   const [savedAccounts, setSavedAccounts] = useState([]);
@@ -56,10 +59,26 @@ export default function AuthGatePage({ onAuthenticated }) {
   useEffect(() => {
     const accs = getSavedAccounts();
     setSavedAccounts(accs);
-    if (accs.length > 0) {
-      setActiveTab('login');
-      setLoginPhoneOrEmail(accs[0].phoneOrEmail || '');
-      setLoginNickname(accs[0].nickname || '');
+    try {
+      const existingAuth = JSON.parse(localStorage.getItem('daypass_user_auth') || 'null');
+      const existingProfile = JSON.parse(localStorage.getItem('daypass_user_profile') || 'null');
+      if (!existingAuth?.accountId) {
+        const legacy = { ...existingAuth, ...existingProfile };
+        if (legacy.nickname || legacy.phoneOrEmail) {
+          setNickname(legacy.nickname || '');
+          setPhoneOrEmail(legacy.phoneOrEmail || '');
+          const savedProvince = PROVINCES.some((item) => item.id === legacy.province)
+            ? legacy.province
+            : 'bangkok';
+          setProvince(savedProvince);
+          const savedAmphoe = legacy.amphoe || legacy.district;
+          if (getAmphoes(savedProvince).some((item) => item.id === savedAmphoe)) setAmphoe(savedAmphoe);
+          setTambon(legacy.tambon || 'ตลาดน้อย');
+          setLegacyProfileAvailable(true);
+        }
+      }
+    } catch {
+      setLegacyProfileAvailable(false);
     }
   }, []);
 
@@ -78,6 +97,7 @@ export default function AuthGatePage({ onAuthenticated }) {
   function completeAuthAndEnter(authData, userProfile) {
     try {
       localStorage.setItem('daypass_user_auth', JSON.stringify(authData));
+      if (authData.accountId) localStorage.setItem('daypass_device_id', authData.accountId);
       if (userProfile) {
         localStorage.setItem('daypass_user_profile', JSON.stringify(userProfile));
         localStorage.setItem('daypass_profile', JSON.stringify(userProfile));
@@ -118,8 +138,7 @@ export default function AuthGatePage({ onAuthenticated }) {
     }
   }
 
-  // Handle Register (Instant!)
-  function handleRegister(e) {
+  async function handleRegister(e) {
     e.preventDefault();
     setError('');
 
@@ -131,15 +150,24 @@ export default function AuthGatePage({ onAuthenticated }) {
       setError('กรุณากรอกเบอร์โทรศัพท์หรืออีเมล');
       return;
     }
+    if (registerPassword.length < 8) {
+      setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
+      return;
+    }
+    if (registerPassword !== confirmPassword) {
+      setError('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+      return;
+    }
 
     setSubmitting(true);
     try {
       const selectedProvince = PROVINCES.find((p) => p.id === province);
       const selectedAmphoe = amphoeList.find((a) => a.id === amphoe);
 
-      const authData = {
+      const accountData = {
         nickname: nickname.trim(),
         phoneOrEmail: phoneOrEmail.trim(),
+        password: registerPassword,
         province,
         provinceName: selectedProvince ? selectedProvince.name : province,
         provinceEmoji: selectedProvince ? selectedProvince.emoji : '🏙️',
@@ -151,21 +179,18 @@ export default function AuthGatePage({ onAuthenticated }) {
         registeredAt: new Date().toISOString(),
       };
 
+      const { account: authData } = await registerAccount(accountData, getDeviceId());
       const userProfile = {
-        nickname: nickname.trim(),
-        phoneOrEmail: phoneOrEmail.trim(),
-        province,
-        district: amphoe,
-        tambon: tambon.trim() || 'ในเมือง',
+        nickname: authData.nickname,
+        phoneOrEmail: authData.phoneOrEmail,
+        province: authData.province,
+        district: authData.amphoe,
+        tambon: authData.tambon,
         lat: authData.lat,
         lng: authData.lng,
-        homeBaseName: `${selectedProvince?.name || ''} - ${selectedAmphoe?.name || ''} (${tambon.trim() || 'ในเมือง'})`,
+        homeBaseName: `${authData.provinceName} - ${authData.amphoeName} (${authData.tambon})`,
       };
 
-      // Non-blocking welcome points award
-      addPoints(getDeviceId(), 50, 'welcome_bonus', 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨').catch(() => {});
-
-      // Instant entry into website!
       completeAuthAndEnter(authData, userProfile);
     } catch (err) {
       setError(err.message || 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาลองใหม่อีกครั้ง');
@@ -173,47 +198,22 @@ export default function AuthGatePage({ onAuthenticated }) {
     }
   }
 
-  // Handle Login (Instant!)
-  function handleLogin(e) {
-    if (e && e.preventDefault) e.preventDefault();
+  async function handleLogin(e) {
+    e.preventDefault();
     setError('');
 
-    if (!loginPhoneOrEmail.trim() && !loginNickname.trim()) {
-      setError('กรุณากรอกเบอร์โทรศัพท์ อีเมล หรือชื่อบัญชี');
+    if (!loginPhoneOrEmail.trim()) {
+      setError('กรุณากรอกเบอร์โทรศัพท์หรืออีเมล');
+      return;
+    }
+    if (!loginPassword) {
+      setError('กรุณากรอกรหัสผ่าน');
       return;
     }
 
     setSubmitting(true);
     try {
-      // Find from saved accounts first
-      const matchedSaved = savedAccounts.find(
-        (a) =>
-          a.phoneOrEmail?.toLowerCase() === loginPhoneOrEmail.trim().toLowerCase() ||
-          a.nickname?.toLowerCase() === loginNickname.trim().toLowerCase() ||
-          a.nickname?.toLowerCase() === loginPhoneOrEmail.trim().toLowerCase()
-      );
-
-      let existingAuth = null;
-      try {
-        existingAuth = JSON.parse(localStorage.getItem('daypass_user_auth') || 'null');
-      } catch {}
-
-      const authData = matchedSaved || (existingAuth && (existingAuth.phoneOrEmail === loginPhoneOrEmail.trim() || existingAuth.nickname === loginNickname.trim()))
-        ? (matchedSaved || existingAuth)
-        : {
-            nickname: loginNickname.trim() || loginPhoneOrEmail.trim() || 'นักเดินทาง OneDaypass',
-            phoneOrEmail: loginPhoneOrEmail.trim() || `${loginNickname.trim()}@onedaypass.travel`,
-            province: 'bangkok',
-            provinceName: 'กรุงเทพมหานคร',
-            provinceEmoji: '🏙️',
-            amphoe: 'samphanthawong',
-            amphoeName: 'เขตสัมพันธวงศ์ (ตลาดน้อย-เยาวราช)',
-            tambon: 'ตลาดน้อย',
-            lat: 13.7313,
-            lng: 100.5105,
-            registeredAt: new Date().toISOString(),
-          };
-
+      const { account: authData } = await loginAccount(loginPhoneOrEmail.trim(), loginPassword, getDeviceId());
       const userProfile = {
         nickname: authData.nickname,
         phoneOrEmail: authData.phoneOrEmail,
@@ -225,7 +225,6 @@ export default function AuthGatePage({ onAuthenticated }) {
         homeBaseName: `${authData.provinceName || 'กรุงเทพฯ'} - ${authData.amphoeName || ''}`,
       };
 
-      // Instant entry into website!
       completeAuthAndEnter(authData, userProfile);
     } catch (err) {
       setError(err.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง');
@@ -233,19 +232,11 @@ export default function AuthGatePage({ onAuthenticated }) {
     }
   }
 
-  // Quick 1-click select saved account (Instant!)
+  // Selecting a saved account only fills its identifier; a password is still required.
   function handleSelectSavedAccount(acc) {
-    const userProfile = {
-      nickname: acc.nickname,
-      phoneOrEmail: acc.phoneOrEmail,
-      province: acc.province,
-      district: acc.amphoe,
-      tambon: acc.tambon,
-      lat: acc.lat || 13.7563,
-      lng: acc.lng || 100.5018,
-      homeBaseName: `${acc.provinceName || ''} - ${acc.amphoeName || ''}`,
-    };
-    completeAuthAndEnter(acc, userProfile);
+    setLoginPhoneOrEmail(acc.phoneOrEmail || '');
+    setLoginPassword('');
+    setError('');
   }
 
   // Quick Demo Guest Login (Instant!)
@@ -278,7 +269,8 @@ export default function AuthGatePage({ onAuthenticated }) {
       homeBaseName: 'กรุงเทพมหานคร - เขตสัมพันธวงศ์ (ตลาดน้อย)',
     };
 
-    addPoints(getDeviceId(), 50, 'welcome_bonus', 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨').catch(() => {});
+    addPoints(getDeviceId(), 50, 'welcome_bonus', 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨')
+      .catch((error) => console.error('Demo welcome points could not be added:', error));
     completeAuthAndEnter(demoAuth, userProfile);
   }
 
@@ -441,9 +433,14 @@ export default function AuthGatePage({ onAuthenticated }) {
                     สร้างบัญชีนักเดินทางใหม่
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    กรอกข้อมูลเพียงไม่กี่ข้อเพื่อเปิดสมุดพาสปอร์ตส่วนตัว พร้อมรับของขวัญต้อนรับทันที
+                    สร้างบัญชีด้วยรหัสผ่าน เพื่อใช้ประวัติพาสและแต้มสะสมบัญชีเดียวกันได้ทุกอุปกรณ์
                   </p>
                 </div>
+                {legacyProfileAvailable && (
+                  <p className="text-[11px] text-sky-800 bg-sky-50 border border-sky-200 rounded-xl p-2.5">
+                    พบข้อมูลเดิมในอุปกรณ์นี้แล้ว ตรวจสอบข้อมูลและตั้งรหัสผ่านเพื่อเชื่อมบัญชี
+                  </p>
+                )}
 
                 {/* Nickname & Contact (2 Columns) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -478,6 +475,45 @@ export default function AuthGatePage({ onAuthenticated }) {
                     />
                   </div>
                 </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1 block">
+                    🔒 รหัสผ่าน <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="input-register-password"
+                    type="password"
+                    required
+                    minLength={8}
+                    maxLength={128}
+                    autoComplete="new-password"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    placeholder="อย่างน้อย 8 ตัวอักษร"
+                    className="input-field py-2.5 text-xs sm:text-sm font-medium"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">ใช้เบอร์/อีเมลและรหัสผ่านนี้เข้าสู่ระบบจากอุปกรณ์อื่น</p>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1 block">
+                    🔒 ยืนยันรหัสผ่าน <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="input-register-confirm-password"
+                    type="password"
+                    required
+                    minLength={8}
+                    maxLength={128}
+                    autoComplete="new-password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="กรอกรหัสผ่านเดิมอีกครั้ง"
+                    className="input-field py-2.5 text-xs sm:text-sm font-medium"
+                  />
+                </div>
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                  เว็บทดลองยังไม่มี OTP หรือระบบกู้รหัสผ่าน โปรดเก็บรหัสผ่านนี้ไว้และอย่าใช้ซ้ำกับบริการอื่น
+                </p>
 
                 {/* Home Location Panel (Full width inputs to prevent truncation) */}
                 <div className="p-4 rounded-3xl bg-slate-50 border border-slate-200/90 space-y-3">
@@ -611,7 +647,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                     className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
                   />
                   <label htmlFor="chk-remember-me" className="cursor-pointer font-medium select-none">
-                    จดจำบัญชีของฉันบนอุปกรณ์นี้ (เข้าสู่ระบบอัตโนมัติในครั้งถัดไป)
+                    บันทึกบัญชีไว้ให้เลือกครั้งหน้า (ยังต้องกรอกรหัสผ่าน)
                   </label>
                 </div>
 
@@ -642,7 +678,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                     เข้าสู่ระบบบัญชีของคุณ
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    เลือกบัญชีที่เคยใช้งานบนเครื่องนี้ หรือกรอกเบอร์โทร/อีเมลเพื่อเปิดใช้งาน
+                    เลือกบัญชีที่เคยใช้งานบนเครื่องนี้ หรือ                    ใช้เบอร์โทรหรืออีเมลและรหัสผ่านที่ลงทะเบียนไว้
                   </p>
                 </div>
 
@@ -650,7 +686,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                 {savedAccounts.length > 0 && (
                   <div className="p-3.5 rounded-3xl bg-amber-50/80 border border-amber-200/80 space-y-2">
                     <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
-                      <span>⚡</span> บัญชีที่เคยใช้งานบนอุปกรณ์นี้ (แตะเพื่อเข้าสู่ระบบทันที)
+                      <span>⚡</span> บัญชีที่เคยใช้บนอุปกรณ์นี้ (เลือกเพื่อกรอกเบอร์/อีเมล)
                     </span>
                     <div className="space-y-1.5">
                       {savedAccounts.map((acc, idx) => (
@@ -674,7 +710,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                             </div>
                           </div>
                           <span className="text-xs font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-xl border border-brand-200">
-                            เข้าสู่ระบบทันที →
+                            เลือกบัญชี
                           </span>
                         </button>
                       ))}
@@ -685,7 +721,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                 {/* Manual Credentials */}
                 <div>
                   <label className="text-xs font-bold text-slate-700 mb-1.5 block">
-                    📱 เบอร์โทรศัพท์, Email หรือ ชื่อเล่น <span className="text-rose-500">*</span>
+                    📱 เบอร์โทรศัพท์ หรือ Email <span className="text-rose-500">*</span>
                   </label>
                   <input
                     id="input-login-contact"
@@ -693,11 +729,31 @@ export default function AuthGatePage({ onAuthenticated }) {
                     required
                     value={loginPhoneOrEmail}
                     onChange={(e) => setLoginPhoneOrEmail(e.target.value)}
-                    placeholder="เช่น 081-xxx-xxxx, email หรือชื่อเล่น"
+                    autoComplete="username"
+                    placeholder="เบอร์โทรศัพท์หรืออีเมลที่ลงทะเบียน"
                     className="input-field py-3 text-sm font-medium"
                   />
                 </div>
 
+                <div>
+                  <label className="text-xs font-bold text-slate-700 mb-1.5 block">
+                    🔒 รหัสผ่าน <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    id="input-login-password"
+                    type="password"
+                    required
+                    maxLength={128}
+                    autoComplete="current-password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="กรอกรหัสผ่านของบัญชี"
+                    className="input-field py-3 text-sm font-medium"
+                  />
+                </div>
+                <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+                  หากลืมรหัสผ่าน รุ่นทดลองนี้ยังไม่มีระบบกู้คืน กรุณาเก็บรหัสผ่านไว้ให้ปลอดภัย
+                </p>
                 <div className="p-3 rounded-2xl bg-sky-50 border border-sky-200 text-sky-800 text-xs flex items-center gap-2.5">
                   <span className="text-lg">💡</span>
                   <span>ระบบจะดึงประวัติการซื้อพาส แต้มสะสม และคูปองของคุณขึ้นมาโดยอัตโนมัติ</span>
@@ -713,7 +769,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                     className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 cursor-pointer"
                   />
                   <label htmlFor="chk-login-remember" className="cursor-pointer font-medium select-none">
-                    จดจำการเข้าสู่ระบบบนอุปกรณ์นี้
+                    บันทึกเบอร์/อีเมลไว้บนอุปกรณ์นี้ (ไม่บันทึกรหัสผ่าน)
                   </label>
                 </div>
 

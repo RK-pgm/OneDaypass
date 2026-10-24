@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDeviceId, getPoints, getPassHistory } from '../api';
+import { getDeviceId, getPoints, getPassHistory, resetDeviceId, updateAccountProfile } from '../api';
 import {
   PROVINCES,
   REGIONS,
@@ -135,34 +135,62 @@ export default function ProfilePage() {
   async function handleSave() {
     if (!profile.nickname.trim()) return;
     setSaving(true);
+    setGpsError('');
 
     const provObj = PROVINCES.find((p) => p.id === profile.province);
+    const districtObj = getAmphoes(profile.province).find((a) => a.id === profile.district);
     const updatedProfile = {
       ...profile,
       homeBaseName: `${provObj?.name || profile.province} - ${profile.district || ''} (${profile.tambon || 'ในเมือง'})`,
       updatedAt: new Date().toISOString(),
     };
 
-    localStorage.setItem('daypass_user_profile', JSON.stringify(updatedProfile));
-    localStorage.setItem('daypass_profile', JSON.stringify(updatedProfile));
-
-    // Also sync with user auth
     try {
-      const existingAuth = JSON.parse(localStorage.getItem('daypass_user_auth') || '{}');
-      const syncedAuth = {
-        ...existingAuth,
+      const existingAuth = JSON.parse(localStorage.getItem('daypass_user_auth') || 'null');
+      let syncedAuth = existingAuth;
+      if (existingAuth?.accountId) {
+        const { account } = await updateAccountProfile(existingAuth.accountId, {
+          nickname: profile.nickname.trim(),
+          province: profile.province,
+          provinceName: provObj?.name || profile.province,
+          provinceEmoji: provObj?.emoji || '🏙️',
+          district: profile.district,
+          districtName: districtObj?.name || profile.district,
+          tambon: profile.tambon || 'ในเมือง',
+          lat: profile.lat,
+          lng: profile.lng,
+        });
+        syncedAuth = account;
+      } else if (existingAuth) {
+        syncedAuth = {
+          ...existingAuth,
+          nickname: profile.nickname.trim(),
+          province: profile.province,
+          provinceName: provObj?.name || profile.province,
+          provinceEmoji: provObj?.emoji || '🏙️',
+          amphoe: profile.district,
+          amphoeName: districtObj?.name || profile.district,
+          tambon: profile.tambon || 'ในเมือง',
+          lat: profile.lat,
+          lng: profile.lng,
+        };
+      }
+
+      const syncedProfile = {
+        ...updatedProfile,
         nickname: profile.nickname.trim(),
-        phoneOrEmail: profile.phoneOrEmail || existingAuth.phoneOrEmail,
-        province: profile.province,
-        provinceName: provObj?.name || profile.province,
-        amphoe: profile.district,
-        tambon: profile.tambon,
-        lat: profile.lat,
-        lng: profile.lng,
+        phoneOrEmail: syncedAuth?.phoneOrEmail || profile.phoneOrEmail,
       };
-      localStorage.setItem('daypass_user_auth', JSON.stringify(syncedAuth));
+      localStorage.setItem('daypass_user_profile', JSON.stringify(syncedProfile));
+      localStorage.setItem('daypass_profile', JSON.stringify(syncedProfile));
+      if (syncedAuth) localStorage.setItem('daypass_user_auth', JSON.stringify(syncedAuth));
+      setProfile(syncedProfile);
       window.dispatchEvent(new Event('daypass_auth_changed'));
-    } catch {}
+    } catch (err) {
+      setGpsError(err.message || 'ไม่สามารถบันทึกข้อมูลโปรไฟล์ได้');
+      setSaving(false);
+      return;
+    }
 
     await new Promise((r) => setTimeout(r, 300));
     setSaving(false);
@@ -380,10 +408,11 @@ export default function ProfilePage() {
                       id="input-profile-contact"
                       type="text"
                       value={profile.phoneOrEmail || ''}
-                      onChange={(e) => setProfile((p) => ({ ...p, phoneOrEmail: e.target.value }))}
                       className="input-field py-2.5 text-sm"
-                      placeholder="08x-xxx-xxxx หรือ email"
+                      readOnly
+                      aria-describedby="profile-contact-note"
                     />
+                    <p id="profile-contact-note" className="mt-1 text-[11px] text-slate-500">ใช้เป็นข้อมูลเข้าสู่ระบบ ติดต่อฝ่ายดูแลหากต้องการเปลี่ยน</p>
                   </div>
                 </div>
               ) : (
@@ -611,6 +640,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => {
                   localStorage.removeItem('daypass_user_auth');
+                  resetDeviceId();
                   window.dispatchEvent(new Event('daypass_auth_changed'));
                   navigate('/', { replace: true });
                 }}

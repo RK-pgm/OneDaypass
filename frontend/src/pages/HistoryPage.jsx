@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { getPassHistory } from '../api';
+import { fetchPassHistory, getDeviceId } from '../api';
 
 export default function HistoryPage() {
   const navigate = useNavigate();
@@ -8,9 +8,24 @@ export default function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'active' | 'completed' | 'expired'
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedPassId, setExpandedPassId] = useState(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyError, setHistoryError] = useState('');
 
   useEffect(() => {
-    setHistory(getPassHistory());
+    let cancelled = false;
+    fetchPassHistory(getDeviceId())
+      .then((items) => {
+        if (!cancelled) setHistory(items);
+      })
+      .catch((error) => {
+        if (!cancelled) setHistoryError(error.message || 'ไม่สามารถโหลดประวัติพาสได้');
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const totalPasses = history.length;
@@ -209,8 +224,19 @@ export default function HistoryPage() {
           </div>
         </div>
 
+        {historyError && (
+          <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700" role="alert">
+            {historyError}
+          </div>
+        )}
+
         {/* History List */}
-        {filteredHistory.length === 0 ? (
+        {historyLoading ? (
+          <div className="glass-card bg-white p-10 text-center rounded-3xl" role="status">
+            <span className="text-4xl mb-3 block">🎟️</span>
+            <p className="text-slate-500 text-sm font-semibold">กำลังโหลดประวัติพาส...</p>
+          </div>
+        ) : filteredHistory.length === 0 ? (
           <div className="glass-card bg-white p-10 text-center rounded-3xl border border-dashed border-slate-300">
             <span className="text-5xl mb-3 block">📭</span>
             <h3 className="text-lg font-extrabold text-slate-800">ไม่พบประวัติพาสที่ตรงกับการค้นหา</h3>

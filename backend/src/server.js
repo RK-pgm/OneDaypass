@@ -25,6 +25,7 @@ app.get('/api/health', (_req, res) => {
 });
 
 const mounts = [
+  ['/api/auth', './routes/auth', 'บัญชีผู้ใช้'],
   ['/api/shops', './routes/shops', 'ร้านค้า'],
   ['/api/orders', './routes/orders', 'คำสั่งซื้อ'],
   ['/api/passes', './routes/passes', 'พาส'],

@@ -8,11 +8,26 @@ const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // ── deviceId (แทน login) ────────────────────────────────────
 export function getDeviceId() {
+  try {
+    const account = JSON.parse(localStorage.getItem('daypass_user_auth') || 'null');
+    if (typeof account?.accountId === 'string' && account.accountId) {
+      localStorage.setItem('daypass_device_id', account.accountId);
+      return account.accountId;
+    }
+  } catch {}
   let id = localStorage.getItem('daypass_device_id');
   if (!id) {
     id = 'dev_' + Math.random().toString(36).slice(2, 10);
     localStorage.setItem('daypass_device_id', id);
   }
+  return id;
+}
+
+export function resetDeviceId() {
+  const id = `dev_${typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2, 14)}`;
+  localStorage.setItem('daypass_device_id', id);
   return id;
 }
 
@@ -28,7 +43,28 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
-import { DISTRICT_DESTINATIONS, findDestinationById } from './data/locations';
+export async function registerAccount(account, previousDeviceId) {
+  return apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ ...account, previousDeviceId }),
+  });
+}
+
+export async function loginAccount(phoneOrEmail, password, previousDeviceId) {
+  return apiFetch('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ phoneOrEmail, password, previousDeviceId }),
+  });
+}
+
+export async function updateAccountProfile(accountId, profile) {
+  return apiFetch('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify({ accountId, profile }),
+  });
+}
+
+import { DISTRICT_DESTINATIONS, findDestinationById, PROVINCES } from './data/locations';
 
 // ─────────────────────────────────────────────────────────────
 //  MOCK DATA & DISTRICT PLANS
@@ -459,6 +495,8 @@ export async function generatePlan(body) {
       ...basePlan,
       districtId: body.districtId || districtKey,
       districtName: targetDest?.name || basePlan.title,
+      provinceId: body.provinceId || targetDest?.provinceId,
+      provinceName: body.provinceName || PROVINCES.find((province) => province.id === targetDest?.provinceId)?.name,
       style: body.style || 'chill',
       totalCostPerPerson: body.budget || 299,
       startTime: body.startTime || '10:00',
@@ -686,6 +724,13 @@ export function savePassToHistory(passEntry) {
   return updated;
 }
 
+/** GET /api/passes?deviceId= */
+export async function fetchPassHistory(deviceId) {
+  if (USE_MOCK) return getPassHistory();
+  const result = await apiFetch(`/passes?deviceId=${encodeURIComponent(deviceId)}`);
+  return Array.isArray(result.history) ? result.history : [];
+}
+
 /** 5. GET /api/passes/:passId */
 export async function getPass(passId) {
   if (USE_MOCK) {
@@ -845,6 +890,5 @@ export async function addPoints(deviceId, delta, type = 'bonus', reason = 'ร�
   return apiFetch('/points/add', {
     method: 'POST',
     body: JSON.stringify({ deviceId, delta, type, reason }),
-  }).catch(() => ({ ok: true }));
+  });
 }
-

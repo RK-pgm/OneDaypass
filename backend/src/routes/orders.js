@@ -6,6 +6,7 @@ const db = require('../db');
 const { calcPointsDiscount } = require('../lib/pointsDiscount');
 
 const router = express.Router();
+const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'heritage', 'challenge', 'night']);
 const balanceFor = (deviceId) => Math.max(0, db.prepare(
   'SELECT COALESCE(SUM(delta), 0) AS total FROM points_ledger WHERE deviceId = ?'
 ).get(deviceId).total);
@@ -29,6 +30,8 @@ function findShopsForPlan(items) {
   const placeholders = shopIds.map(() => '?').join(',');
   const rows = db.prepare(`SELECT * FROM shops WHERE id IN (${placeholders})`).all(...shopIds);
   if (rows.length !== shopIds.length) return null;
+  const demoGenerated = rows.some((row) => row.id.startsWith('demo_'));
+  if (demoGenerated && (process.env.NODE_ENV === 'production' || process.env.DEMO_MODE !== 'true')) return null;
 
   const byId = new Map(rows.map((row) => [row.id, row]));
   const planItems = items.map((item, index) => {
@@ -55,6 +58,7 @@ function findShopsForPlan(items) {
   return {
     title: typeof items.title === 'string' ? items.title : 'แผนเที่ยว DayPass',
     style: ['chill', 'challenge'].includes(items.style) ? items.style : 'chill',
+    ...(demoGenerated ? { demoGenerated: true } : {}),
     items: planItems,
     totalCostPerPerson: planItems.reduce((sum, item) => sum + item.estCost, 0)
   };
@@ -86,7 +90,17 @@ router.post('/', async (req, res, next) => {
     const trustedPlan = findShopsForPlan(plan.items);
     if (!trustedPlan) return res.status(400).json({ error: 'แผนมีร้านซ้ำ หรือมีร้านที่ไม่อยู่ในระบบ' });
     trustedPlan.title = typeof plan.title === 'string' ? plan.title : trustedPlan.title;
-    trustedPlan.style = ['chill', 'challenge'].includes(plan.style) ? plan.style : 'chill';
+    trustedPlan.style = TRAVEL_STYLES.has(plan.style) ? plan.style : 'chill';
+    for (const field of ['districtId', 'districtName', 'provinceId', 'provinceName']) {
+      if (typeof plan[field] === 'string' && plan[field].length <= 120) trustedPlan[field] = plan[field];
+    }
+    if (plan.selectedPackage && typeof plan.selectedPackage === 'object') {
+      trustedPlan.selectedPackage = Object.fromEntries(
+        ['id', 'title', 'badge', 'transitAdvice']
+          .filter((field) => typeof plan.selectedPackage[field] === 'string')
+          .map((field) => [field, plan.selectedPackage[field].slice(0, 200)])
+      );
+    }
     const subtotal = Math.round(trustedPlan.totalCostPerPerson * people);
     if (subtotal <= 0) return res.status(400).json({ error: 'แผนเที่ยวนี้ไม่มีค่าใช้จ่าย ไม่สามารถสร้างคำสั่งซื้อได้' });
     const pointsBalance = balanceFor(deviceId);
@@ -140,6 +154,7 @@ router.post('/:orderId/confirm', (req, res, next) => {
     let code = passCode();
     while (db.prepare('SELECT 1 FROM passes WHERE code = ?').get(code)) code = passCode();
     const now = new Date().toISOString();
+    const pointsEarned = Math.max(10, Math.round(order.amount * 0.05));
     db.transaction(() => {
       const update = db.prepare("UPDATE orders SET status = 'paid' WHERE id = ? AND status = 'pending'").run(order.id);
       if (update.changes !== 1) throw new Error('ORDER_ALREADY_CONFIRMED');
@@ -156,8 +171,11 @@ router.post('/:orderId/confirm', (req, res, next) => {
         db.prepare('INSERT INTO points_ledger (id, deviceId, delta, reason, at) VALUES (?, ?, ?, ?, ?)')
           .run(`pt_${crypto.randomUUID()}`, order.deviceId, -order.pointsUsed, `ใช้แต้มกับออเดอร์ ${order.id}`, now);
       }
+      db.prepare('INSERT INTO points_ledger (id, deviceId, delta, reason, at) VALUES (?, ?, ?, ?, ?)')
+        .run(`pt_${crypto.randomUUID()}`, order.deviceId, pointsEarned,
+          `แต้มสะสมจากการซื้อ ${plan.selectedPackage?.title || 'พาส OneDaypass'}`, now);
     })();
-    return res.json({ passId, status: 'paid' });
+    return res.json({ passId, status: 'paid', pointsEarned });
   } catch (error) {
     if (error.message === 'POINTS_BALANCE_CHANGED') return res.status(409).json({ error: 'แต้มเปลี่ยนแปลงระหว่างทำรายการ กรุณาสร้างคำสั่งซื้อใหม่' });
     if (error.message === 'ORDER_ALREADY_CONFIRMED') return res.status(409).json({ error: 'คำสั่งซื้อนี้ได้รับการยืนยันแล้ว' });
