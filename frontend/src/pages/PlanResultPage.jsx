@@ -37,6 +37,18 @@ const CATEGORY_ICON = {
   activity: '🎯 กิจกรรม',
 };
 
+const TRAVEL_STYLE_LABELS = {
+  chill: '☕ ชิลๆ สบายๆ',
+  cafe: '🥐 สายคาเฟ่',
+  foodie: '🍜 สายกินลุย',
+  photo: '📸 สายถ่ายรูป',
+  art: '🎨 สายอาร์ต',
+  heritage: '🏛️ สายวัฒนธรรม',
+  challenge: '⚡ ตระเวนท้าทาย',
+  night: '🌙 สายราตรี',
+};
+const VALID_TRAVEL_STYLES = Object.keys(TRAVEL_STYLE_LABELS);
+
 function distanceKm(aLat, aLng, bLat, bLng) {
   const radians = (degrees) => (degrees * Math.PI) / 180;
   const dLat = radians(bLat - aLat);
@@ -85,7 +97,7 @@ function readSharedTrip() {
     const plan = {
       ...shared.plan,
       title: String(shared.plan.title || 'แผนเที่ยว DayPass'),
-      style: ['chill', 'challenge'].includes(shared.plan.style) ? shared.plan.style : 'chill',
+      style: VALID_TRAVEL_STYLES.includes(shared.plan.style) ? shared.plan.style : 'chill',
       totalCostPerPerson: Number.isFinite(shared.plan.totalCostPerPerson)
         ? Math.max(0, shared.plan.totalCostPerPerson)
         : items.reduce((sum, item) => sum + item.estCost, 0),
@@ -188,6 +200,11 @@ export default function PlanResultPage() {
   const totalCost = selectedPackage.pricePerPerson * people;
   const couponCount = plan.items.filter((item) => item.coupon).length;
   const missionPoints = plan.items.reduce((sum, item) => sum + (item.mission?.points || 0), 0);
+  const mapCenter = plan.items.reduce(
+    (center, item) => [center[0] + item.lat / plan.items.length, center[1] + item.lng / plan.items.length],
+    [0, 0]
+  );
+  const polylinePositions = plan.items.map((item) => [item.lat, item.lng]);
   const totalMinutes = plan.items.reduce(
     (sum, item) => sum + (item.durationMin || 45) + walkingMinutes(item.distanceFromPrevKm || 0),
     0
@@ -340,7 +357,7 @@ export default function PlanResultPage() {
                     ? 'bg-blue-50 text-blue-700 border border-blue-200'
                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                 }`}>
-                  {plan.style === 'chill' ? '☕ ชิลๆ สบายๆ' : '⚡ ตระเวนท้าทาย'}
+                  {TRAVEL_STYLE_LABELS[plan.style] || TRAVEL_STYLE_LABELS.chill}
                 </span>
               </div>
               <button
@@ -375,7 +392,12 @@ export default function PlanResultPage() {
                 </span>
               </div>
 
-              {plan.districtId && plan.districtId !== 'taladnoi' && (
+              {plan.demoGenerated && (
+                <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800" role="note">
+                  ย่านนี้ยังไม่มีข้อมูลร้านค้าจริง แผนนี้ใช้จุดตัวอย่าง ไม่มีคูปองหรือสิทธิประโยชน์จริง โปรดตรวจสอบสถานที่ก่อนเดินทาง
+                </p>
+              )}
+              {!plan.demoGenerated && plan.districtId && plan.districtId !== 'taladnoi' && (
                 <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800" role="note">
                   แผนนี้ใช้ข้อมูลตัวอย่าง โปรดตรวจสอบพิกัด เวลาเปิด ราคา และสิทธิประโยชน์กับสถานที่ก่อนเดินทาง
                 </p>

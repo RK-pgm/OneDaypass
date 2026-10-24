@@ -18,7 +18,8 @@ export default function App() {
   const [userAuth, setUserAuth] = useState(() => {
     try {
       const saved = localStorage.getItem('daypass_user_auth');
-      return saved ? JSON.parse(saved) : null;
+      const account = saved ? JSON.parse(saved) : null;
+      return account?.accountId || account?.isDemo ? account : null;
     } catch {
       return null;
     }
@@ -29,7 +30,8 @@ export default function App() {
     const handleAuthChange = () => {
       try {
         const saved = localStorage.getItem('daypass_user_auth');
-        setUserAuth(saved ? JSON.parse(saved) : null);
+        const account = saved ? JSON.parse(saved) : null;
+        setUserAuth(account?.accountId || account?.isDemo ? account : null);
       } catch {
         setUserAuth(null);
       }

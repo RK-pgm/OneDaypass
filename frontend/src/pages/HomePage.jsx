@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DISTRICTS, USE_MOCK } from '../api';
+import { DISTRICTS } from '../api';
 
 // ────────────────────────────────────────────────────
 // Data
@@ -41,7 +41,7 @@ const HOW_IT_WORKS = [
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const availableDistricts = USE_MOCK ? DISTRICTS : DISTRICTS.filter((d) => d.id === 'taladnoi');
+  const availableDistricts = DISTRICTS;
   const [selectedPreviewDistrict, setSelectedPreviewDistrict] = useState(availableDistricts[0]);
   const [activeFaq, setActiveFaq] = useState(null);
 
@@ -348,7 +348,7 @@ export default function HomePage() {
               className="font-extrabold text-slate-900 mb-3"
               style={{ fontSize: 'clamp(1.5rem, 4vw, 2.5rem)' }}
             >
-              {USE_MOCK ? 'ย่านเด็ดกรุงเทพฯ' : 'ย่านที่เปิดให้วางแผนเที่ยว'}
+              ย่านท่องเที่ยวยอดนิยมทั่วไทย
             </h2>
             <p className="text-slate-500 text-sm sm:text-base">
               แต่ละย่านมีเอกลักษณ์เฉพาะตัว ออกแบบเส้นทางให้เดินง่าย คาเฟ่สวย อาหารอร่อย
@@ -357,62 +357,86 @@ export default function HomePage() {
 
           <div className="grid-destinations">
             {availableDistricts.map((district, i) => (
-              <button
+              <div
                 key={district.id}
-                onClick={() => handleStartPlan(district.id)}
-                className="destination-card text-left group cursor-pointer animate-fade-in"
+                className="destination-card group relative animate-fade-in"
                 style={{ animationDelay: `${i * 0.08}s` }}
               >
-                {/* District cover image area */}
-                <div
-                  className="h-32 sm:h-36 flex items-center justify-center relative overflow-hidden"
-                  style={{
-                    background: `linear-gradient(135deg, ${
-                      ['#fff7ed,#fde68a', '#ecfdf5,#a7f3d0', '#eff6ff,#bfdbfe', '#fdf4ff,#e9d5ff'][i % 4]
-                    })`,
-                  }}
+                <button
+                  type="button"
+                  onClick={() => handleStartPlan(district.id)}
+                  className="block w-full cursor-pointer text-left"
                 >
-                  <span className="text-7xl group-hover:scale-110 transition-transform duration-300 select-none">
-                    {district.coverEmoji}
-                  </span>
                   <div
-                    className="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full"
-                    style={{ background: 'rgba(255,255,255,0.9)', color: '#1a1209' }}
+                    className="h-32 sm:h-36 flex items-center justify-center relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${
+                        ['#fff7ed,#fde68a', '#ecfdf5,#a7f3d0', '#eff6ff,#bfdbfe', '#fdf4ff,#e9d5ff'][i % 4]
+                      })`,
+                    }}
                   >
-                    {district.tag}
-                  </div>
-                </div>
-
-                <div className="p-4">
-                  <h3
-                    className="text-base font-extrabold text-slate-900 group-hover:text-orange-600 transition-colors mb-1"
-                  >
-                    {district.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
-                    {district.highlight}
-                  </p>
-
-                  <div
-                    className="mt-4 pt-3 flex items-center justify-between"
-                    style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
-                  >
-                    <div>
-                      <p className="text-[10px] text-slate-400 font-semibold">งบเริ่มต้น</p>
-                      <p className="font-extrabold text-sm" style={{ color: '#f97316' }}>
-                        ~{district.avgCost} ฿/คน
-                      </p>
-                    </div>
-                    <span
-                      className="text-xs font-bold flex items-center gap-1 group-hover:gap-2 transition-all"
-                      style={{ color: '#f97316' }}
+                    {district.coverPhoto ? (
+                      <img
+                        src={district.coverPhoto.src}
+                        alt={district.coverPhoto.alt}
+                        loading="lazy"
+                        className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                    ) : (
+                      <span className="text-7xl group-hover:scale-110 transition-transform duration-300 select-none">
+                        {district.coverEmoji}
+                      </span>
+                    )}
+                    <div
+                      className="absolute top-3 right-3 text-[10px] font-bold px-2.5 py-1 rounded-full"
+                      style={{ background: 'rgba(255,255,255,0.9)', color: '#1a1209' }}
                     >
-                      จัดแผน
-                      <span>→</span>
-                    </span>
+                      {district.tag}
+                    </div>
                   </div>
-                </div>
-              </button>
+
+                  <div className="p-4">
+                    <h3
+                      className="text-base font-extrabold text-slate-900 group-hover:text-orange-600 transition-colors mb-1"
+                    >
+                      {district.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">
+                      {district.highlight}
+                    </p>
+
+                    <div
+                      className="mt-4 pt-3 flex items-center justify-between"
+                      style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}
+                    >
+                      <div>
+                        <p className="text-[10px] text-slate-400 font-semibold">งบเริ่มต้น</p>
+                        <p className="font-extrabold text-sm" style={{ color: '#f97316' }}>
+                          ~{district.avgCost} ฿/คน
+                        </p>
+                      </div>
+                      <span
+                        className="text-xs font-bold flex items-center gap-1 group-hover:gap-2 transition-all"
+                        style={{ color: '#f97316' }}
+                      >
+                        จัดแผน
+                        <span>→</span>
+                      </span>
+                    </div>
+                  </div>
+                </button>
+                {district.coverPhoto && (
+                  <span className="absolute left-2 top-[104px] sm:top-[120px] z-10 inline-flex items-center gap-1 rounded bg-white/90 px-1.5 py-1 text-[9px] leading-none text-slate-800 shadow">
+                    <a href={district.coverPhoto.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                      ภาพ: {district.coverPhoto.author}
+                    </a>
+                    <span aria-hidden="true">·</span>
+                    <a href={district.coverPhoto.licenseUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                      {district.coverPhoto.license}
+                    </a>
+                  </span>
+                )}
+              </div>
             ))}
           </div>
         </div>

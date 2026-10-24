@@ -165,7 +165,8 @@ export default function TravelQuizPage() {
         try {
           localStorage.setItem('daypass_travel_style', res.style);
           localStorage.setItem('daypass_quiz_result', JSON.stringify(res));
-          addPoints(getDeviceId(), 20, 'quiz_complete', 'ทำควิซค้นหาสไตล์เที่ยวกับน้องพาส 🧭').catch(() => {});
+          addPoints(getDeviceId(), 20, 'quiz_complete', 'ทำควิซค้นหาสไตล์เที่ยวกับน้องพาส 🧭')
+            .catch((error) => console.error('Quiz points could not be added:', error));
         } catch {}
         setStep('result');
       }

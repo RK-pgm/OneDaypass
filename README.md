@@ -26,11 +26,11 @@ daypass/
 │   │       ├── shops.js      # GET /api/shops
 │   │       ├── plans.js      # POST /api/plans/generate
 │   │       ├── orders.js     # POST /api/orders & confirm
-│   │       ├── passes.js     # GET /api/passes/:id
+│   │       ├── passes.js     # GET /api/passes and /api/passes/:id
 │   │       ├── coupons.js    # POST /api/coupons/:id/redeem
 │   │       ├── checkin.js    # POST /api/checkin
 │   │       ├── missions.js   # POST /api/missions/:id/submit
-│   │       └── points.js     # GET /api/points
+│   │       └── points.js     # GET /api/points and POST /api/points/add
 │   ├── uploads/              # โฟลเดอร์เก็บรูปภาพภารกิจ
 │   └── package.json
 │

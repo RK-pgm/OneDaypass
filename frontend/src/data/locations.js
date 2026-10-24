@@ -2,6 +2,8 @@
 // locations.js — ฐานข้อมูล 77 จังหวัดทั่วไทย & พิกัด GPS อัจฉริยะ
 // ============================================================
 
+import destinationPhotos from './destinationPhotos.json' with { type: 'json' };
+
 export const REGIONS = [
   { id: 'central', name: 'ภาคกลาง & กรุงเทพฯ' },
   { id: 'north', name: 'ภาคเหนือ' },
@@ -217,6 +219,14 @@ export const DISTRICT_DESTINATIONS = [
     lat: 13.7313,
     lng: 100.5105,
     coverEmoji: '🎨',
+    coverPhoto: {
+      src: '/images/destinations/talat-noi-street-art.jpg',
+      alt: 'ภาพจิตรกรรมฝาผนังสีสันสดใสบนอาคารในตลาดน้อย',
+      author: 'Phoebus 28',
+      license: 'CC BY-SA 4.0',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Talat_Noi_Street_Art.jpg',
+      licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    },
     stopsCount: 4,
     avgCost: 299,
   },
@@ -231,6 +241,14 @@ export const DISTRICT_DESTINATIONS = [
     lat: 13.7404,
     lng: 100.5133,
     coverEmoji: '🦞',
+    coverPhoto: {
+      src: '/images/destinations/yaowarat-night.jpg',
+      alt: 'ถนนเยาวราชยามค่ำคืนที่ประดับด้วยป้ายไฟ',
+      author: 'Deepak-nsk',
+      license: 'CC0',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Chinatown_in_Bangkok_(Yaowarat)_at_night.jpg',
+      licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+    },
     stopsCount: 4,
     avgCost: 350,
   },
@@ -245,6 +263,14 @@ export const DISTRICT_DESTINATIONS = [
     lat: 13.7797,
     lng: 100.5447,
     coverEmoji: '🥐',
+    coverPhoto: {
+      src: '/images/destinations/ari-bts-station.jpg',
+      alt: 'รถไฟฟ้าจอดที่สถานีอารีย์ กรุงเทพฯ',
+      author: 'Crcolas',
+      license: 'CC BY-SA 4.0',
+      sourceUrl: 'https://commons.wikimedia.org/wiki/File:Ari_BTS_Station.jpg',
+      licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0/',
+    },
     stopsCount: 4,
     avgCost: 350,
   },
@@ -872,6 +898,11 @@ export const DISTRICT_DESTINATIONS = [
   },
 ];
 
+for (const destination of DISTRICT_DESTINATIONS) {
+  const coverPhoto = destinationPhotos[destination.id];
+  if (coverPhoto) destination.coverPhoto = coverPhoto;
+}
+
 // ───────────────────────────────────────────────
 //  HELPER FUNCTIONS & SMART GPS DETECTOR
 // ───────────────────────────────────────────────
@@ -936,7 +967,12 @@ export function getDestinations(provinceId, amphoeId) {
 }
 
 export function findDestinationById(id) {
-  return DISTRICT_DESTINATIONS.find((d) => d.id === id) || DISTRICT_DESTINATIONS[0];
+  const destination = DISTRICT_DESTINATIONS.find((d) => d.id === id);
+  if (destination) return destination;
+  if (typeof id === 'string' && id.startsWith('custom_')) {
+    return getDestinations(id.slice('custom_'.length))[0] || DISTRICT_DESTINATIONS[0];
+  }
+  return DISTRICT_DESTINATIONS[0];
 }
 
 /**

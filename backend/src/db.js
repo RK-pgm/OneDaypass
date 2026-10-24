@@ -88,6 +88,17 @@ db.exec(`
     at TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS accounts (
+    id TEXT PRIMARY KEY,
+    loginKey TEXT NOT NULL UNIQUE,
+    phoneOrEmail TEXT NOT NULL,
+    passwordSalt TEXT NOT NULL,
+    passwordHash TEXT NOT NULL,
+    profileJson TEXT NOT NULL,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+
   CREATE INDEX IF NOT EXISTS idx_coupons_pass ON coupons(passId);
   CREATE INDEX IF NOT EXISTS idx_checkins_pass ON checkins(passId);
   CREATE INDEX IF NOT EXISTS idx_mission_submissions_device ON mission_submissions(deviceId);

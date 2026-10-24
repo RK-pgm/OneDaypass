@@ -22,6 +22,19 @@ curl.exe "http://localhost:5000/api/shops"
 curl.exe "http://localhost:5000/api/shops?lat=13.7313&lng=100.5105&radiusKm=3"
 ```
 
+## สมัครบัญชีและเข้าสู่ระบบข้ามอุปกรณ์
+
+สมัครบัญชีด้วยเบอร์โทรศัพท์หรืออีเมลและรหัสผ่าน (อย่างน้อย 8 ตัวอักษร) พร้อมส่ง `previousDeviceId` เพื่อย้ายประวัติพาสและแต้มจากอุปกรณ์เดิมไปยังบัญชี:
+
+```powershell
+curl.exe -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d '{"nickname":"นักเดินทาง","phoneOrEmail":"traveler@example.test","password":"change-this-password","province":"bangkok","amphoe":"samphanthawong","tambon":"ตลาดน้อย","previousDeviceId":"dev-old-device"}'
+curl.exe -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"phoneOrEmail":"traveler@example.test","password":"change-this-password"}'
+```
+
+ค่าบัญชี `accountId` ที่ได้จากการสมัครหรือเข้าสู่ระบบเป็นรหัสอ้างอิงข้อมูลถาวร ใช้แทน `deviceId` สำหรับแต้ม ประวัติพาส และกิจกรรมจากทุกอุปกรณ์ โปรไฟล์ที่แก้ไขในหน้าโปรไฟล์จะถูกบันทึกกลับบัญชีด้วย
+
+รุ่นทดลองนี้ยังไม่มี OTP, การยืนยันอีเมล หรือการกู้คืนรหัสผ่าน ผู้ใช้จึงควรเก็บรหัสผ่านให้ปลอดภัย และไม่ใช้รหัสผ่านที่ใช้กับบริการอื่น
+
 ## สร้างออเดอร์และออกพาส
 
 ส่งแผนที่ได้จาก `POST /api/plans/generate` ให้ตรง contract:
@@ -35,7 +48,18 @@ curl.exe -X POST http://localhost:5000/api/orders -H "Content-Type: application/
 ```powershell
 curl.exe -X POST http://localhost:5000/api/orders/ORDER_ID/confirm -H "Content-Type: application/json" -d '{}'
 curl.exe http://localhost:5000/api/passes/PASS_ID
+curl.exe "http://localhost:5000/api/passes?deviceId=demo-device-1"
 ```
+
+ดูแต้มและรับโบนัสจากกิจกรรมที่ระบบรองรับ:
+
+```powershell
+curl.exe "http://localhost:5000/api/points?deviceId=demo-device-1"
+curl.exe -X POST http://localhost:5000/api/points/add -H "Content-Type: application/json" -d '{"deviceId":"demo-device-1","delta":20,"type":"quiz_complete"}'
+```
+
+โบนัสต้อนรับและโบนัสทำควิซรับได้ครั้งเดียวต่ออุปกรณ์ ส่วนโบนัสรายวันรับได้วันละครั้ง
+การเพิ่มโบนัสจาก client เปิดเฉพาะเมื่อ `DEMO_MODE=true`; ระบบ production ต้องเชื่อมกับการยืนยันบัญชีก่อน เพื่อป้องกันการปลอม deviceId รับแต้ม
 
 ## ใช้คูปองและเช็กอิน
 

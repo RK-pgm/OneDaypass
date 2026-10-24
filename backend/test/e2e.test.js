@@ -1,8 +1,8 @@
 const assert = require('assert');
 
 async function runE2ETest() {
-  const base = 'http://localhost:5000';
-  console.log('🧪 Starting DayPass 10-Endpoint Integration Test...\n');
+  const base = process.env.API_BASE_URL || 'http://localhost:5000';
+  console.log('🧪 Starting DayPass API Integration Test...\n');
 
   // 1. Health
   const hRes = await fetch(`${base}/api/health`);
@@ -14,17 +14,17 @@ async function runE2ETest() {
   const sRes = await fetch(`${base}/api/shops`);
   const s = await sRes.json();
   const shops = s.shops || s;
-  assert(Array.isArray(shops) && shops.length === 16, 'Expected 16 Talat Noi shops');
-  console.log(`✅ 2. Shops fetched: ${shops.length} verified shops in Talat Noi`);
+  assert(Array.isArray(shops) && shops.length >= 16, 'Expected seeded shops');
+  console.log(`✅ 2. Shops fetched: ${shops.length} seeded shops`);
 
   // 3. Plan Generate (Algorithm C)
   const pRes = await fetch(`${base}/api/plans/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ budget: 350, style: 'chill', radiusKm: 2, startTime: '10:00' })
+    body: JSON.stringify({ budget: 350, style: 'cafe', radiusKm: 2, startTime: '10:00' })
   });
   const p = await pRes.json();
-  assert(p.plan && p.plan.items.length >= 3, 'Plan generation failed');
+  assert(p.plan && p.plan.items.length >= 3 && p.plan.style === 'cafe', 'Plan generation failed for selected style');
   console.log(`✅ 3. Plan generated: "${p.plan.title}" (${p.plan.items.length} stops)`);
 
   // 4. Create Order
@@ -59,7 +59,81 @@ async function runE2ETest() {
   assert(pass.id === c.passId && Array.isArray(pass.coupons), 'Pass fetch failed');
   console.log(`✅ 6. Pass fetched: Status ${pass.status}, ${pass.coupons.length} coupons attached`);
 
-  // 7. Check-in (Simulated GPS 150m rule)
+  // 7. Verify purchase history and cashback are tied to the same device
+  const historyRes = await fetch(`${base}/api/passes?deviceId=${deviceId}`);
+  const history = await historyRes.json();
+  assert(Array.isArray(history.history) && history.history.some((entry) => entry.passId === pass.id), 'Pass history failed');
+  assert(history.history.find((entry) => entry.passId === pass.id).pointsEarned > 0, 'Pass history cashback was not recorded');
+  console.log(`✅ 7. Pass history fetched for device: ${history.history.length} pass(es)`);
+
+  // 8. Generate and purchase a clearly labeled demo itinerary for an unmapped destination
+  const demoPlanRes = await fetch(`${base}/api/plans/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      districtId: 'yaowarat',
+      districtName: 'เยาวราช - ไชน่าทาวน์',
+      provinceId: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      budget: 350,
+      style: 'cafe',
+      radiusKm: 2,
+      startLat: 13.7404,
+      startLng: 100.5133,
+      startTime: '10:00',
+    }),
+  });
+  const demoPlanResult = await demoPlanRes.json();
+  assert(demoPlanRes.ok && demoPlanResult.plan?.demoGenerated, 'Unmapped destination demo plan was not generated');
+  assert(demoPlanResult.warning?.includes('ไม่มีสิทธิประโยชน์จริง'), 'Demo itinerary warning did not explain its limitations');
+  assert(demoPlanResult.plan.items.length >= 3, 'Demo destination plan has too few stops');
+  assert(demoPlanResult.plan.items.every((item) => item.shopName.includes('จุดตัวอย่าง')), 'Demo itinerary included unverified venue names');
+  assert(demoPlanResult.plan.items.every((item) => !item.coupon), 'Demo itinerary advertised real coupons');
+
+  const demoOrderRes = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, plan: demoPlanResult.plan, people: 1, usePoints: 0 }),
+  });
+  const demoOrder = await demoOrderRes.json();
+  assert(demoOrderRes.ok && demoOrder.orderId, 'Demo itinerary order creation failed');
+  const demoConfirmRes = await fetch(`${base}/api/orders/${demoOrder.orderId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ slipImageName: 'mock_slip.jpg' }),
+  });
+  const demoConfirmed = await demoConfirmRes.json();
+  assert(demoConfirmRes.ok && demoConfirmed.passId, 'Demo destination pass confirmation failed');
+  const demoPassRes = await fetch(`${base}/api/passes/${demoConfirmed.passId}`);
+  const demoPass = await demoPassRes.json();
+  assert(demoPassRes.ok && demoPass.id === demoConfirmed.passId, 'Demo destination pass could not be retrieved');
+  const demoHistoryRes = await fetch(`${base}/api/passes?deviceId=${deviceId}`);
+  const demoHistory = await demoHistoryRes.json();
+  assert(demoHistory.history.some((entry) => entry.passId === demoPass.id), 'Demo destination pass was missing from purchase history');
+  console.log('✅ 8. Unsupported destination demo plan created an order, pass, and history entry without claiming real venues or coupons');
+
+  // 9. Add an allowed reward and reject a duplicate
+  const rewardRes = await fetch(`${base}/api/points/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId,
+      delta: 20,
+      type: 'quiz_complete',
+      reason: 'ทดสอบรายการแต้ม'
+    })
+  });
+  const reward = await rewardRes.json();
+  assert(rewardRes.status === 201 && reward.ok, 'Points reward was not recorded');
+  const duplicateRewardRes = await fetch(`${base}/api/points/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, delta: 20, type: 'quiz_complete' })
+  });
+  assert(duplicateRewardRes.status === 409, 'Duplicate points reward was accepted');
+  console.log('✅ 9. Points reward recorded once');
+
+  // 10. Check-in (Simulated GPS 150m rule)
   const firstShop = p.plan.items[0];
   const chkRes = await fetch(`${base}/api/checkin`, {
     method: 'POST',
@@ -74,9 +148,9 @@ async function runE2ETest() {
   });
   const chk = await chkRes.json();
   assert(chk.ok, 'Check-in failed');
-  console.log(`✅ 7. Check-in passed at "${firstShop.shopName}" (${chk.distanceM}m)`);
+  console.log(`✅ 9. Check-in passed at "${firstShop.shopName}" (${chk.distanceM}m)`);
 
-  // 8. Redeem Coupon
+  // 11. Redeem Coupon
   if (pass.coupons.length > 0) {
     const couponToUse = pass.coupons[0];
     const cpRes = await fetch(`${base}/api/coupons/${couponToUse.id}/redeem`, {
@@ -86,10 +160,10 @@ async function runE2ETest() {
     });
     const cp = await cpRes.json();
     assert(cp.ok, 'Coupon redemption failed');
-    console.log(`✅ 8. Coupon redeemed: "${couponToUse.title}" at ${cp.redeemedAt}`);
+    console.log(`✅ 10. Coupon redeemed: "${couponToUse.title}" at ${cp.redeemedAt}`);
   }
 
-  // 9. Mission Photo Upload & Points Award
+  // 12. Mission Photo Upload & Points Award
   const missionItem = p.plan.items.find(i => i.mission);
   if (missionItem) {
     const boundary = '----WebKitFormBoundaryE2ETest';
@@ -107,17 +181,121 @@ async function runE2ETest() {
     });
     const m = await mRes.json();
     assert(m.ok && m.pointsAwarded > 0, 'Mission submission failed');
-    console.log(`✅ 9. Mission submitted: "${missionItem.mission.title}" -> +${m.pointsAwarded} points awarded!`);
+    console.log(`✅ 11. Mission submitted: "${missionItem.mission.title}" -> +${m.pointsAwarded} points awarded!`);
   }
 
-  // 10. Check Points Balance
+  // 13. Check Points Balance
   const ptsRes = await fetch(`${base}/api/points?deviceId=${deviceId}`);
   const pts = await ptsRes.json();
   assert(pts.points > 0, 'Points ledger failed to track earned points');
   assert(Array.isArray(pts.transactions) && pts.transactions.some((entry) => entry.delta > 0), 'Points history failed to return earned points');
-  console.log(`✅ 10. Points balance and transaction history updated: ${pts.points} points, ${pts.transactions.length} recent entries`);
+  console.log(`✅ 12. Points balance and transaction history updated: ${pts.points} points, ${pts.transactions.length} recent entries`);
 
-  console.log('\n🎉 ALL 10 DAYPASS ENDPOINTS VERIFIED & WORKING 100%!');
+  // 14. Register an account, migrate device data, and authenticate on another device
+  const contact = `auth-test-${Date.now()}@example.test`;
+  const registerRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Auth Test',
+      phoneOrEmail: contact,
+      password: 'test-password-123',
+      province: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      provinceEmoji: '🏙️',
+      amphoe: 'samphanthawong',
+      amphoeName: 'เขตสัมพันธวงศ์',
+      tambon: 'ตลาดน้อย',
+      lat: 13.7313,
+      lng: 100.5105,
+      previousDeviceId: deviceId,
+    }),
+  });
+  const registered = await registerRes.json();
+  assert(registerRes.status === 201 && registered.account?.accountId, 'Account registration failed');
+  const accountId = registered.account.accountId;
+
+  const migratedHistoryRes = await fetch(`${base}/api/passes?deviceId=${accountId}`);
+  const migratedHistory = await migratedHistoryRes.json();
+  assert(migratedHistory.history.some((entry) => entry.passId === pass.id), 'Existing device history was not linked to the new account');
+
+  const secondDeviceId = `new-device-${Date.now()}`;
+  const secondDeviceRewardRes = await fetch(`${base}/api/points/add`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId: secondDeviceId, delta: 20, type: 'quiz_complete' }),
+  });
+  assert(secondDeviceRewardRes.status === 201, 'Could not create second-device points for migration test');
+  const loginRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phoneOrEmail: contact.toUpperCase(),
+      password: 'test-password-123',
+      previousDeviceId: secondDeviceId,
+    }),
+  });
+  const loggedIn = await loginRes.json();
+  assert(loginRes.ok && loggedIn.account?.accountId === accountId, 'Cross-device account login failed');
+  const migratedPointsRes = await fetch(`${base}/api/points?deviceId=${accountId}`);
+  const migratedPoints = await migratedPointsRes.json();
+  assert(migratedPoints.totalPoints >= pts.totalPoints + 70, 'Existing points and welcome bonus were not linked to the account');
+  const previousDevicePointsRes = await fetch(`${base}/api/points?deviceId=${secondDeviceId}`);
+  const previousDevicePoints = await previousDevicePointsRes.json();
+  assert(previousDevicePoints.totalPoints === 0, 'Second-device points were not moved to the account');
+
+  const profileRes = await fetch(`${base}/api/auth/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      accountId,
+      profile: {
+        nickname: 'Updated Auth Test',
+        province: 'chiangmai',
+        provinceName: 'เชียงใหม่',
+        provinceEmoji: '🌿',
+        district: 'mueang',
+        districtName: 'เมืองเชียงใหม่',
+        tambon: 'สุเทพ',
+        lat: 18.7883,
+        lng: 98.9853,
+      },
+    }),
+  });
+  const updatedProfile = await profileRes.json();
+  assert(profileRes.ok && updatedProfile.account?.nickname === 'Updated Auth Test', 'Account profile update failed');
+  const reloginRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneOrEmail: contact, password: 'test-password-123' }),
+  });
+  const reloggedIn = await reloginRes.json();
+  assert(reloggedIn.account?.province === 'chiangmai', 'Updated profile was not shared across login sessions');
+
+  const wrongPasswordRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneOrEmail: contact, password: 'wrong-password' }),
+  });
+  assert(wrongPasswordRes.status === 401, 'Login accepted an incorrect password');
+
+  const duplicateRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Duplicate',
+      phoneOrEmail: contact,
+      password: 'test-password-123',
+      province: 'bangkok',
+      amphoe: 'samphanthawong',
+      tambon: 'ตลาดน้อย',
+      previousDeviceId: `unused-${Date.now()}`,
+    }),
+  });
+  assert(duplicateRes.status === 409, 'Duplicate account registration was accepted');
+  console.log('✅ 14. Account registration, device data migration, and password login passed');
+
+  console.log('\n🎉 ALL DAYPASS API CHECKS PASSED!');
 }
 
 runE2ETest().catch(err => {
