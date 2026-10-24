@@ -256,7 +256,7 @@ function CheckinButton({ item, passId, alreadyCheckedIn, onCheckin }) {
         onClick={() => handleCheckin(false)}
         disabled={loading}
       >
-        {loading ? '...' : '📍 เช็กอิน GPS'}
+        {loading ? '...' : '📍 เช็กอินด้วยตำแหน่ง'}
       </button>
       {DEMO_MODE && (
         <button
@@ -367,6 +367,14 @@ export default function PassPage() {
   const checkedInShopIds = new Set(pass.checkins.map((c) => c.shopId));
   const planItems = pass.plan.items;
   const activeCouponsCount = pass.coupons.filter((c) => !c.used).length;
+  const purchaseDate = pass.purchase?.purchasedAt
+    ? new Intl.DateTimeFormat('th-TH', {
+      dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok',
+    }).format(new Date(pass.purchase.purchasedAt))
+    : pass.purchaseDateText || 'ไม่พบข้อมูลวันที่ซื้อ';
+  const purchaseAmount = Number(pass.purchase?.amount ?? pass.totalAmount ?? 0);
+  const purchaseDiscount = Number(pass.purchase?.discount ?? pass.discount ?? 0);
+  const purchasePoints = Number(pass.purchase?.pointsUsed ?? pass.pointsUsed ?? 0);
 
   return (
     <div className="flex-1 flex flex-col py-6 sm:py-10 animate-fade-in">
@@ -438,6 +446,38 @@ export default function PassPage() {
 
           </div>
         </div>
+
+        <section className="glass-card bg-white mb-6 border border-slate-200" aria-labelledby="purchase-details-title">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 id="purchase-details-title" className="font-extrabold text-slate-900">รายละเอียดการซื้อ</h2>
+              <p className="text-xs text-slate-500 mt-0.5">ข้อมูลคำสั่งซื้อที่ออกพาสใบนี้</p>
+            </div>
+            <span className="text-2xl" aria-hidden="true">🧾</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+            <div className="rounded-xl bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">รหัสคำสั่งซื้อ</span>
+              <span className="font-mono font-bold text-slate-900 break-all">
+                {pass.purchase?.orderId || pass.orderId || '—'}
+              </span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">วันที่ซื้อ</span>
+              <span className="font-bold text-slate-900">{purchaseDate}</span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">ยอดชำระ</span>
+              <span className="font-bold text-slate-900">{purchaseAmount.toLocaleString()} บาท</span>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <span className="block text-xs text-slate-500">ส่วนลดจากแต้ม</span>
+              <span className="font-bold text-emerald-700">
+                {purchaseDiscount > 0 ? `-${purchaseDiscount.toLocaleString()} บาท (${purchasePoints} แต้ม)` : 'ไม่มีส่วนลด'}
+              </span>
+            </div>
+          </div>
+        </section>
 
         <section className="glass-card bg-white mb-6" aria-labelledby="points-history-title">
           <div className="flex items-center justify-between gap-3 mb-3">

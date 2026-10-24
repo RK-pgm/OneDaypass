@@ -491,7 +491,7 @@ export default function PlanResultPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-brand-600 font-bold">✓</span>
-                  <span>ระบบเช็กอิน GPS อัตโนมัติ ไม่ต้องพกตั๋วกระดาษ</span>
+                  <span>ระบบเช็กอินด้วยตำแหน่งปัจจุบัน ไม่ต้องพกตั๋วกระดาษ</span>
                 </div>
               </div>
             </div>

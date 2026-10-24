@@ -20,6 +20,24 @@ function isValidLogin(value) {
   return /^\+?\d{8,15}$/.test(normalized);
 }
 
+function isValidEmail(value) {
+  return typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isValidDateOfBirth(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) &&
+    date.toISOString().slice(0, 10) === value &&
+    date <= new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
+function isValidProfilePhoto(value) {
+  return typeof value === 'string' &&
+    value.length <= 500_000 &&
+    /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+}
+
 function publicAccount(row) {
   return {
     ...JSON.parse(row.profileJson),
@@ -38,7 +56,12 @@ router.post('/register', async (req, res) => {
   try {
     const {
       nickname,
+      fullName,
       phoneOrEmail,
+      email,
+      dateOfBirth,
+      currentAddress,
+      profilePhoto,
       password,
       province,
       provinceName,
@@ -54,9 +77,18 @@ router.post('/register', async (req, res) => {
     if (typeof nickname !== 'string' || !nickname.trim() || nickname.trim().length > 40) {
       return res.status(400).json({ error: 'กรุณากรอกชื่อที่มีความยาวไม่เกิน 40 ตัวอักษร' });
     }
+    if (typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length > 120) {
+      return res.status(400).json({ error: 'กรุณากรอกชื่อ-นามสกุลให้ถูกต้อง' });
+    }
     if (typeof phoneOrEmail !== 'string' || !phoneOrEmail.trim() || phoneOrEmail.length > 254 || !isValidLogin(phoneOrEmail)) {
       return res.status(400).json({ error: 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์ให้ถูกต้อง' });
     }
+    if (!isValidEmail(email)) return res.status(400).json({ error: 'กรุณากรอกอีเมลให้ถูกต้อง' });
+    if (!isValidDateOfBirth(dateOfBirth)) return res.status(400).json({ error: 'กรุณากรอกวันเกิดให้ถูกต้อง' });
+    if (typeof currentAddress !== 'string' || !currentAddress.trim() || currentAddress.trim().length > 300) {
+      return res.status(400).json({ error: 'กรุณากรอกที่อยู่ปัจจุบันให้ถูกต้อง' });
+    }
+    if (!isValidProfilePhoto(profilePhoto)) return res.status(400).json({ error: 'กรุณาเพิ่มรูปโปรไฟล์ JPG, PNG หรือ WebP' });
     if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
       return res.status(400).json({ error: 'รหัสผ่านต้องมีความยาว 8-128 ตัวอักษร' });
     }
@@ -83,7 +115,12 @@ router.post('/register', async (req, res) => {
     const now = new Date().toISOString();
     const profile = {
       nickname: nickname.trim(),
+      fullName: fullName.trim(),
       phoneOrEmail: phoneOrEmail.trim(),
+      email: email.trim().toLowerCase(),
+      dateOfBirth,
+      currentAddress: currentAddress.trim(),
+      profilePhoto,
       province: province.trim(),
       provinceName: typeof provinceName === 'string' ? provinceName.slice(0, 100) : province.trim(),
       provinceEmoji: typeof provinceEmoji === 'string' ? provinceEmoji.slice(0, 8) : '🏙️',
@@ -173,6 +210,15 @@ router.put('/profile', (req, res) => {
     ) {
       return res.status(400).json({ error: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
     }
+    if (
+      ('fullName' in profile && (typeof profile.fullName !== 'string' || !profile.fullName.trim() || profile.fullName.trim().length > 120)) ||
+      ('email' in profile && !isValidEmail(profile.email)) ||
+      ('dateOfBirth' in profile && !isValidDateOfBirth(profile.dateOfBirth)) ||
+      ('currentAddress' in profile && (typeof profile.currentAddress !== 'string' || !profile.currentAddress.trim() || profile.currentAddress.trim().length > 300)) ||
+      ('profilePhoto' in profile && !isValidProfilePhoto(profile.profilePhoto))
+    ) {
+      return res.status(400).json({ error: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
+    }
 
     const row = db.prepare('SELECT profileJson FROM accounts WHERE id = ?').get(accountId);
     if (!row) return res.status(404).json({ error: 'ไม่พบบัญชีผู้ใช้' });
@@ -180,6 +226,11 @@ router.put('/profile', (req, res) => {
     const updated = {
       ...current,
       nickname: profile.nickname.trim(),
+      ...(typeof profile.fullName === 'string' ? { fullName: profile.fullName.trim() } : {}),
+      ...(typeof profile.email === 'string' ? { email: profile.email.trim().toLowerCase() } : {}),
+      ...(typeof profile.dateOfBirth === 'string' ? { dateOfBirth: profile.dateOfBirth } : {}),
+      ...(typeof profile.currentAddress === 'string' ? { currentAddress: profile.currentAddress.trim() } : {}),
+      ...(typeof profile.profilePhoto === 'string' ? { profilePhoto: profile.profilePhoto } : {}),
       province: profile.province,
       provinceName: typeof profile.provinceName === 'string' ? profile.provinceName.slice(0, 100) : profile.province,
       provinceEmoji: typeof profile.provinceEmoji === 'string' ? profile.provinceEmoji.slice(0, 8) : '🏙️',

@@ -3,6 +3,7 @@
 // ============================================================
 
 import destinationPhotos from './destinationPhotos.json' with { type: 'json' };
+import thaiAdministrativeAreas from './thaiAdministrativeAreas.json' with { type: 'json' };
 
 export const REGIONS = [
   { id: 'central', name: 'ภาคกลาง & กรุงเทพฯ' },
@@ -930,6 +931,48 @@ export function getAmphoes(provinceId) {
   ];
 }
 
+function normalizeAdministrativeName(value) {
+  return String(value || '')
+    .replace(/\s*\([^)]*\)/g, '')
+    .replace(/^(อำเภอ|ตำบล|เขต|แขวง|อ\.|ต\.)\s*/, '')
+    .trim();
+}
+
+function getAdministrativeProvinceName(provinceId) {
+  const province = PROVINCES.find((item) => item.id === provinceId);
+  return province ? normalizeAdministrativeName(province.name) : '';
+}
+
+export function getAdministrativeDistricts(provinceId) {
+  const provinceName = getAdministrativeProvinceName(provinceId);
+  return (thaiAdministrativeAreas[provinceName] || []).map(([name]) => ({ id: name, name }));
+}
+
+export function getAdministrativeSubdistricts(provinceId, districtName) {
+  const provinceName = getAdministrativeProvinceName(provinceId);
+  const district = (thaiAdministrativeAreas[provinceName] || []).find(([name]) => name === districtName);
+  return (district?.[1] || []).map((name) => ({ id: name, name }));
+}
+
+export function findAdministrativeDistrict(provinceId, value) {
+  const districts = getAdministrativeDistricts(provinceId);
+  const directMatch = districts.find((item) => item.id === value || item.name === value);
+  if (directMatch) return directMatch;
+
+  const oldDistrictName = getAmphoes(provinceId).find((item) => item.id === value)?.name;
+  const normalizedNames = [value, oldDistrictName].map(normalizeAdministrativeName).filter(Boolean);
+  return districts.find((item) => normalizedNames.includes(normalizeAdministrativeName(item.name))) || null;
+}
+
+export function findAdministrativeSubdistrict(provinceId, districtName, value) {
+  const subdistricts = getAdministrativeSubdistricts(provinceId, districtName);
+  const directMatch = subdistricts.find((item) => item.id === value || item.name === value);
+  if (directMatch) return directMatch;
+
+  const normalizedValue = normalizeAdministrativeName(value);
+  return subdistricts.find((item) => normalizeAdministrativeName(item.name) === normalizedValue) || null;
+}
+
 /**
  * ดึงย่านท่องเที่ยว พร้อมระบบสร้างย่านจำลองอัตโนมัติหากจังหวัดนั้นยังไม่มี preset
  */
@@ -1015,7 +1058,7 @@ export function findNearestProvince(lat, lng) {
 export async function detectLocationFromGPS() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
-      reject(new Error('อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับระบบ GPS / ระบุพิกัดตำแหน่ง'));
+      reject(new Error('อุปกรณ์หรือเบราว์เซอร์นี้ไม่รองรับการระบุตำแหน่ง'));
       return;
     }
 
@@ -1086,11 +1129,11 @@ export async function detectLocationFromGPS() {
       (err) => {
         let msg = 'ไม่สามารถระบุพิกัดตำแหน่งได้';
         if (err.code === 1) {
-          msg = 'กรุณากด "อนุญาต (Allow)" การเข้าถึงตำแหน่ง GPS บนเบราว์เซอร์';
+          msg = 'กรุณาอนุญาตให้เบราว์เซอร์เข้าถึงตำแหน่งของอุปกรณ์';
         } else if (err.code === 2) {
           msg = 'ไม่พบสัญญาณดาวเทียมหรือพิกัดตำแหน่ง';
         } else if (err.code === 3) {
-          msg = 'หมดเวลาค้นหาพิกัด GPS กรุณาลองใหม่อีกครั้ง';
+          msg = 'หมดเวลาค้นหาตำแหน่ง กรุณาลองใหม่อีกครั้ง';
         }
         reject(new Error(msg));
       },

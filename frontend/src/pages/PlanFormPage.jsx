@@ -449,13 +449,13 @@ export default function PlanFormPage() {
                   onClick={handleGetLocation}
                   className="text-brand-600 hover:underline flex items-center gap-1 font-bold"
                 >
-                  {gpsLoading ? '⟳ กำลังค้นหา GPS...' : '📍 ใช้ GPS ปัจจุบัน'}
+                  {gpsLoading ? '⟳ กำลังค้นหาตำแหน่ง...' : '📍 ใช้ตำแหน่งปัจจุบัน'}
                 </button>
               </div>
 
               {userCoords && (
                 <p className="mt-2 text-xs text-emerald-700 font-semibold bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 flex items-center justify-between">
-                  <span>✓ ตรวจพบพิกัด GPS: {userCoords.lat.toFixed(4)}, {userCoords.lng.toFixed(4)}</span>
+                  <span>✓ ตรวจพบพิกัดปัจจุบัน: {userCoords.lat.toFixed(4)}, {userCoords.lng.toFixed(4)}</span>
                   <button onClick={() => setUserCoords(null)} className="text-rose-500 hover:underline text-xs">ยกเลิก</button>
                 </p>
               )}
