@@ -2,13 +2,14 @@ const express = require('express');
 const db = require('../db');
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res, next) => {
+  try {
   const { deviceId } = req.query;
   if (typeof deviceId !== 'string' || !deviceId.trim() || deviceId.length > 128) {
     return res.status(400).json({ error: 'กรุณาระบุ deviceId' });
   }
 
-  const rows = db.prepare(`
+  const rows = await db.all(`
     SELECT p.id, p.code, p.status, p.validDate, p.createdAt AS passCreatedAt,
       o.id AS orderId, o.planJson, o.people, o.amount, o.discount, o.pointsUsed, o.isDemo,
       o.createdAt AS orderCreatedAt
@@ -16,16 +17,17 @@ router.get('/', (req, res) => {
     JOIN orders o ON o.id = p.orderId
     WHERE o.deviceId = ? AND o.status = 'paid'
     ORDER BY p.createdAt DESC
-  `).all(deviceId);
+  `, deviceId);
 
-  const history = rows.map((row) => {
+  const history = [];
+  for (const row of rows) {
     const plan = JSON.parse(row.planJson);
     const purchaseDate = new Date(row.orderCreatedAt || row.passCreatedAt).toLocaleString('th-TH', {
       day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
-    const coupons = db.prepare('SELECT used FROM coupons WHERE passId = ?').all(row.id);
-    const checkins = db.prepare('SELECT COUNT(*) AS total FROM checkins WHERE passId = ?').get(row.id);
-    return {
+    const coupons = await db.all('SELECT used FROM coupons WHERE passId = ?', row.id);
+    const checkins = await db.get('SELECT COUNT(*) AS total FROM checkins WHERE passId = ?', row.id);
+    history.push({
       id: row.id,
       passId: row.id,
       orderId: row.orderId,
@@ -47,28 +49,32 @@ router.get('/', (req, res) => {
       placesCount: plan.items?.length || 0,
       couponsCount: coupons.length,
       couponsUsed: coupons.filter((coupon) => coupon.used).length,
-      checkinsCount: checkins.total,
+      checkinsCount: Number(checkins.total) || 0,
       plan
-    };
-  });
+    });
+  }
   return res.json({ history });
+  } catch (error) {
+    return next(error);
+  }
 });
 
-router.get('/:passId', (req, res) => {
-  const pass = db.prepare(`SELECT p.*, o.id AS orderId, o.planJson, o.people,
+router.get('/:passId', async (req, res, next) => {
+  try {
+  const pass = await db.get(`SELECT p.*, o.id AS orderId, o.planJson, o.people,
     o.amount, o.discount, o.pointsUsed, o.isDemo, o.createdAt AS orderCreatedAt
     FROM passes p
-    JOIN orders o ON o.id = p.orderId WHERE p.id = ?`).get(req.params.passId);
+    JOIN orders o ON o.id = p.orderId WHERE p.id = ?`, req.params.passId);
   if (!pass) return res.status(404).json({ error: 'ไม่พบพาสนี้' });
-  const coupons = db.prepare('SELECT id, shopId, title, used FROM coupons WHERE passId = ? ORDER BY rowid').all(pass.id)
+  const coupons = (await db.all('SELECT id, shopId, title, used FROM coupons WHERE passId = ? ORDER BY id', pass.id))
     .map((coupon) => ({ ...coupon, used: Boolean(coupon.used) }));
-  const checkins = db.prepare('SELECT shopId, at FROM checkins WHERE passId = ? ORDER BY at').all(pass.id);
-  const unlockedMissionIds = db.prepare(`SELECT DISTINCT 'm-' || s.id AS missionId
+  const checkins = await db.all('SELECT shopId, at FROM checkins WHERE passId = ? ORDER BY at', pass.id);
+  const unlockedMissionIds = (await db.all(`SELECT DISTINCT 'm-' || s.id AS missionId
     FROM checkins c JOIN shops s ON s.id = c.shopId
     WHERE c.passId = ? AND s.missionJson IS NOT NULL AND NOT EXISTS (
       SELECT 1 FROM mission_submissions ms WHERE ms.passId = c.passId AND ms.missionId = 'm-' || s.id
-    )`).all(pass.id).map((row) => row.missionId);
-  const completedMissionIds = db.prepare('SELECT missionId FROM mission_submissions WHERE passId = ?').all(pass.id)
+    )`, pass.id)).map((row) => row.missionId);
+  const completedMissionIds = (await db.all('SELECT missionId FROM mission_submissions WHERE passId = ?', pass.id))
     .map((row) => row.missionId);
   return res.json({ id: pass.id, code: pass.code, status: pass.status, isDemo: Boolean(pass.isDemo), validDate: pass.validDate,
     people: pass.people, plan: JSON.parse(pass.planJson), coupons, checkins, unlockedMissionIds, completedMissionIds,
@@ -79,6 +85,9 @@ router.get('/:passId', (req, res) => {
       pointsUsed: pass.pointsUsed,
       purchasedAt: pass.orderCreatedAt
     } });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 module.exports = router;

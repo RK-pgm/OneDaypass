@@ -45,10 +45,10 @@ function publicAccount(row) {
   };
 }
 
-function migrateDeviceData(fromDeviceId, accountId) {
+async function migrateDeviceData(fromDeviceId, accountId) {
   if (!fromDeviceId || fromDeviceId === accountId) return;
   for (const table of ['orders', 'points_ledger', 'mission_submissions']) {
-    db.prepare(`UPDATE ${table} SET deviceId = ? WHERE deviceId = ?`).run(accountId, fromDeviceId);
+    await db.run(`UPDATE ${table} SET deviceId = ? WHERE deviceId = ?`, accountId, fromDeviceId);
   }
 }
 
@@ -106,7 +106,7 @@ router.post('/register', async (req, res) => {
     }
 
     const loginKey = normalizeLogin(phoneOrEmail);
-    const existing = db.prepare('SELECT id FROM accounts WHERE loginKey = ?').get(loginKey);
+    const existing = await db.get('SELECT id FROM accounts WHERE loginKey = ?', loginKey);
     if (existing) return res.status(409).json({ error: 'เบอร์โทรศัพท์หรืออีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' });
 
     const id = `acct_${crypto.randomUUID()}`;
@@ -132,29 +132,28 @@ router.post('/register', async (req, res) => {
       registeredAt: now,
     };
 
-    const createAccount = db.transaction(() => {
-      db.prepare(`
+    await db.transaction(async () => {
+      await db.run(`
         INSERT INTO accounts (id, loginKey, phoneOrEmail, passwordSalt, passwordHash, profileJson, createdAt, updatedAt)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, loginKey, phoneOrEmail.trim(), salt.toString('hex'), passwordHash.toString('hex'), JSON.stringify(profile), now, now);
-      migrateDeviceData(previousDeviceId, id);
+      `, id, loginKey, phoneOrEmail.trim(), salt.toString('hex'), passwordHash.toString('hex'), JSON.stringify(profile), now, now);
+      await migrateDeviceData(previousDeviceId, id);
       const welcomeReason = 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨';
-      const hasWelcomeBonus = db.prepare(
-        'SELECT 1 FROM points_ledger WHERE deviceId = ? AND reason = ? LIMIT 1'
-      ).get(id, welcomeReason);
+      const hasWelcomeBonus = await db.get(
+        'SELECT 1 FROM points_ledger WHERE deviceId = ? AND reason = ? LIMIT 1', id, welcomeReason
+      );
       if (!hasWelcomeBonus) {
-        db.prepare(`
+        await db.run(`
           INSERT INTO points_ledger (id, deviceId, delta, reason, at)
           VALUES (?, ?, 50, ?, ?)
-        `).run(`pt_${crypto.randomUUID()}`, id, welcomeReason, now);
+        `, `pt_${crypto.randomUUID()}`, id, welcomeReason, now);
       }
     });
-    createAccount();
 
-    const row = db.prepare('SELECT id, profileJson FROM accounts WHERE id = ?').get(id);
+    const row = await db.get('SELECT id, profileJson FROM accounts WHERE id = ?', id);
     return res.status(201).json({ ok: true, account: publicAccount(row) });
   } catch (error) {
-    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE' || error.code === '23505') {
       return res.status(409).json({ error: 'เบอร์โทรศัพท์หรืออีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' });
     }
     console.error('[Error POST /api/auth/register]:', error);
@@ -172,10 +171,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'กรุณากรอกรหัสผ่าน' });
     }
 
-    const row = db.prepare(`
+    const row = await db.get(`
       SELECT id, passwordSalt, passwordHash, profileJson
       FROM accounts WHERE loginKey = ?
-    `).get(normalizeLogin(phoneOrEmail));
+    `, normalizeLogin(phoneOrEmail));
     if (!row) return res.status(401).json({ error: 'เบอร์โทรศัพท์/อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
 
     const candidate = await scrypt(password, Buffer.from(row.passwordSalt, 'hex'), PASSWORD_BYTES);
@@ -185,7 +184,7 @@ router.post('/login', async (req, res) => {
     }
 
     if (typeof previousDeviceId === 'string' && previousDeviceId.trim() && previousDeviceId.length <= 128) {
-      db.transaction(() => migrateDeviceData(previousDeviceId, row.id))();
+      await db.transaction(() => migrateDeviceData(previousDeviceId, row.id));
     }
     return res.json({ ok: true, account: publicAccount(row) });
   } catch (error) {
@@ -194,7 +193,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.put('/profile', (req, res) => {
+router.put('/profile', async (req, res) => {
   try {
     const { accountId, profile } = req.body || {};
     if (typeof accountId !== 'string' || !accountId.startsWith('acct_') || !profile || typeof profile !== 'object') {
@@ -220,7 +219,7 @@ router.put('/profile', (req, res) => {
       return res.status(400).json({ error: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
     }
 
-    const row = db.prepare('SELECT profileJson FROM accounts WHERE id = ?').get(accountId);
+    const row = await db.get('SELECT profileJson FROM accounts WHERE id = ?', accountId);
     if (!row) return res.status(404).json({ error: 'ไม่พบบัญชีผู้ใช้' });
     const current = JSON.parse(row.profileJson);
     const updated = {
@@ -241,8 +240,8 @@ router.put('/profile', (req, res) => {
       lng: Number.isFinite(profile.lng) ? profile.lng : current.lng,
       updatedAt: new Date().toISOString(),
     };
-    db.prepare('UPDATE accounts SET profileJson = ?, updatedAt = ? WHERE id = ?')
-      .run(JSON.stringify(updated), updated.updatedAt, accountId);
+    await db.run('UPDATE accounts SET profileJson = ?, updatedAt = ? WHERE id = ?',
+      JSON.stringify(updated), updated.updatedAt, accountId);
     return res.json({ ok: true, account: { ...updated, accountId } });
   } catch (error) {
     console.error('[Error PUT /api/auth/profile]:', error);

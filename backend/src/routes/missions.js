@@ -39,7 +39,7 @@ const upload = multer({
  * 3. Records in mission_submissions and points_ledger
  * 4. Returns { ok: true, pointsAwarded, totalPoints }
  */
-router.post('/:missionId/submit', upload.single('image'), (req, res) => {
+router.post('/:missionId/submit', upload.single('image'), async (req, res, next) => {
   try {
     const { missionId } = req.params;
     const { passId, deviceId } = req.body || {};
@@ -49,12 +49,12 @@ router.post('/:missionId/submit', upload.single('image'), (req, res) => {
     }
 
     // 1. ตรวจสอบพาส
-    const pass = db.prepare(`
+    const pass = await db.get(`
       SELECT p.*, o.planJson 
       FROM passes p 
       JOIN orders o ON o.id = p.orderId 
       WHERE p.id = ?
-    `).get(passId);
+    `, passId);
 
     if (!pass) {
       return res.status(404).json({ error: 'ไม่พบพาสนี้ในระบบ' });
@@ -71,13 +71,13 @@ router.post('/:missionId/submit', upload.single('image'), (req, res) => {
     const pointsAwarded = Number(planItem.mission.points) || 5;
 
     // 2. กฎ: ต้องเช็กอินร้านนั้นในพาสนี้ก่อน (403)
-    const checkin = db.prepare('SELECT 1 FROM checkins WHERE passId = ? AND shopId = ?').get(passId, shopId);
+    const checkin = await db.get('SELECT 1 FROM checkins WHERE passId = ? AND shopId = ?', passId, shopId);
     if (!checkin) {
       return res.status(403).json({ error: 'ต้องเช็กอินร้านนี้ก่อน จึงจะสามารถส่งภาพภารกิจได้' });
     }
 
     // 3. กฎ: ส่งซ้ำมิชชั่นเดิมในพาสเดิมไม่ได้ (409)
-    const existing = db.prepare('SELECT 1 FROM mission_submissions WHERE passId = ? AND missionId = ?').get(passId, missionId);
+    const existing = await db.get('SELECT 1 FROM mission_submissions WHERE passId = ? AND missionId = ?', passId, missionId);
     if (existing) {
       return res.status(409).json({ error: 'ภารกิจนี้ส่งภาพรับแต้มไปแล้วในพาสนี้' });
     }
@@ -89,23 +89,23 @@ router.post('/:missionId/submit', upload.single('image'), (req, res) => {
 
     // 4. บันทึก mission_submissions และเพิ่มแต้มใน points_ledger
     let totalPoints = 0;
-    db.transaction(() => {
-      db.prepare(`
+    await db.transaction(async () => {
+      await db.run(`
         INSERT INTO mission_submissions (id, passId, missionId, deviceId, imagePath, points, at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(submissionId, passId, missionId, deviceId, imagePath, pointsAwarded, now);
+      `, submissionId, passId, missionId, deviceId, imagePath, pointsAwarded, now);
 
-      db.prepare(`
+      await db.run(`
         INSERT INTO points_ledger (id, deviceId, delta, reason, at)
         VALUES (?, ?, ?, ?, ?)
-      `).run(ledgerId, deviceId, pointsAwarded, `ทำมิชชั่น ${planItem.mission.title} สำเร็จ`, now);
+      `, ledgerId, deviceId, pointsAwarded, `ทำมิชชั่น ${planItem.mission.title} สำเร็จ`, now);
 
-      const balanceRow = db.prepare(
-        'SELECT COALESCE(SUM(delta), 0) AS total FROM points_ledger WHERE deviceId = ?'
-      ).get(deviceId);
+      const balanceRow = await db.get(
+        'SELECT COALESCE(SUM(delta), 0) AS total FROM points_ledger WHERE deviceId = ?', deviceId
+      );
 
-      totalPoints = Math.max(0, balanceRow ? balanceRow.total : pointsAwarded);
-    })();
+      totalPoints = Math.max(0, Number(balanceRow?.total) || pointsAwarded);
+    });
 
     return res.json({
       ok: true,
@@ -113,8 +113,7 @@ router.post('/:missionId/submit', upload.single('image'), (req, res) => {
       totalPoints
     });
   } catch (error) {
-    console.error('[Error POST /api/missions/:missionId/submit]:', error);
-    return res.status(500).json({ error: error.message || 'เกิดข้อผิดพลาดในการส่งรูปมิชชั่น' });
+    return next(error);
   }
 });
 

@@ -23,43 +23,32 @@ function seedShops() {
   if (!Array.isArray(shops)) throw new Error('ไฟล์ shops.json ต้องเป็น array');
   shops.forEach(validateShop);
 
-  const upsert = db.prepare(`INSERT INTO shops
+  const upsert = `INSERT INTO shops
     (id, name, district, category, lat, lng, avgPrice, tagsJson, recommendedMenu,
      couponJson, openFrom, openTo, durationMin, missionJson)
-    VALUES (@id, @name, @district, @category, @lat, @lng, @avgPrice, @tagsJson,
-     @recommendedMenu, @couponJson, @openFrom, @openTo, @durationMin, @missionJson)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       name=excluded.name, district=excluded.district, category=excluded.category,
       lat=excluded.lat, lng=excluded.lng, avgPrice=excluded.avgPrice,
       tagsJson=excluded.tagsJson, recommendedMenu=excluded.recommendedMenu,
       couponJson=excluded.couponJson, openFrom=excluded.openFrom, openTo=excluded.openTo,
-      durationMin=excluded.durationMin, missionJson=excluded.missionJson`);
-  const seed = db.transaction((records) => {
-    for (const shop of records) {
-      upsert.run({
-        ...shop,
-        tagsJson: JSON.stringify(shop.tags),
-        recommendedMenu: shop.recommendedMenu || null,
-        couponJson: shop.coupon ? JSON.stringify(shop.coupon) : null,
-        openFrom: shop.openFrom || null,
-        openTo: shop.openTo || null,
-        missionJson: shop.mission ? JSON.stringify(shop.mission) : null
-      });
+      durationMin=excluded.durationMin, missionJson=excluded.missionJson`;
+  return db.transaction(async () => {
+    for (const shop of shops) {
+      await db.run(upsert,
+        shop.id, shop.name, shop.district, shop.category, shop.lat, shop.lng, shop.avgPrice,
+        JSON.stringify(shop.tags), shop.recommendedMenu || null,
+        shop.coupon ? JSON.stringify(shop.coupon) : null, shop.openFrom || null, shop.openTo || null,
+        shop.durationMin, shop.mission ? JSON.stringify(shop.mission) : null);
     }
-  });
-  seed(shops);
-  console.log(`Seeded ${shops.length} shops`);
+  }).then(() => console.log(`Seeded ${shops.length} shops`));
 }
 
 if (require.main === module) {
-  try {
-    seedShops();
-  } catch (error) {
+  db.init().then(seedShops).catch((error) => {
     console.error(`Seed failed: ${error.message}`);
     process.exitCode = 1;
-  } finally {
-    db.close();
-  }
+  }).finally(() => db.close());
 }
 
 module.exports = seedShops;

@@ -73,6 +73,14 @@ async function runE2ETest() {
   assert(c.passId && c.status === 'paid', 'Order confirmation failed');
   console.log(`✅ 5. Order confirmed: Pass ID ${c.passId} (Status: ${c.status})`);
 
+  const retryConfirmRes = await fetch(`${base}/api/orders/${o.orderId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({})
+  });
+  const retryConfirm = await retryConfirmRes.json();
+  assert(retryConfirmRes.ok && retryConfirm.passId === c.passId, 'Retrying order confirmation created a different pass');
+
   // 6. Get Pass Details
   const passRes = await fetch(`${base}/api/passes/${c.passId}`);
   const pass = await passRes.json();
@@ -350,6 +358,21 @@ async function runE2ETest() {
   });
   const reloggedIn = await reloginRes.json();
   assert(reloggedIn.account?.province === 'chiangmai' && reloggedIn.account?.email === 'updated@example.test', 'Updated profile was not shared across login sessions');
+
+  const loggedOutDeviceId = `after-logout-${Date.now()}`;
+  const logoutLoginRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      phoneOrEmail: contact,
+      password: 'test-password-123',
+      previousDeviceId: loggedOutDeviceId,
+    }),
+  });
+  const loggedOutLogin = await logoutLoginRes.json();
+  assert(logoutLoginRes.ok && loggedOutLogin.account?.accountId === accountId, 'Login after logout failed with the correct password');
+  const historyAfterLogoutLogin = await fetch(`${base}/api/passes?deviceId=${accountId}`).then((response) => response.json());
+  assert(historyAfterLogoutLogin.history.some((entry) => entry.passId === pass.id), 'Purchase history was missing after login from a fresh device');
 
   const wrongPasswordRes = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
