@@ -25,7 +25,8 @@ db.exec(`
     openFrom TEXT,
     openTo TEXT,
     durationMin INTEGER NOT NULL DEFAULT 60 CHECK(durationMin > 0),
-    missionJson TEXT
+    missionJson TEXT,
+    isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1))
   );
 
   CREATE TABLE IF NOT EXISTS orders (
@@ -105,5 +106,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_points_ledger_device ON points_ledger(deviceId);
   CREATE INDEX IF NOT EXISTS idx_shops_district ON shops(district);
 `);
+
+if (!db.prepare('PRAGMA table_info(shops)').all().some((column) => column.name === 'isDemo')) {
+  db.exec('ALTER TABLE shops ADD COLUMN isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1))');
+}
 
 module.exports = db;

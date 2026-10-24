@@ -25,8 +25,8 @@ router.get('/', (req, res) => {
   }
   if (!provided.length) {
     const rows = districtId
-      ? db.prepare('SELECT * FROM shops WHERE district = ? ORDER BY name').all(DISTRICTS[districtId])
-      : db.prepare('SELECT * FROM shops ORDER BY name').all();
+      ? db.prepare('SELECT * FROM shops WHERE district = ? AND isDemo = 0 ORDER BY name').all(DISTRICTS[districtId])
+      : db.prepare('SELECT * FROM shops WHERE isDemo = 0 ORDER BY name').all();
     return res.json({ shops: rows.map(serialize) });
   }
   const lat = Number(req.query.lat);
@@ -36,8 +36,8 @@ router.get('/', (req, res) => {
     return res.status(400).json({ error: 'พิกัดหรือรัศมีไม่ถูกต้อง' });
   }
   const rows = districtId
-    ? db.prepare('SELECT * FROM shops WHERE district = ?').all(DISTRICTS[districtId])
-    : db.prepare('SELECT * FROM shops').all();
+    ? db.prepare('SELECT * FROM shops WHERE district = ? AND isDemo = 0').all(DISTRICTS[districtId])
+    : db.prepare('SELECT * FROM shops WHERE isDemo = 0').all();
   const shops = rows.map(serialize)
     .filter((shop) => distanceKm(lat, lng, shop.lat, shop.lng) <= radiusKm);
   return res.json({ shops });
