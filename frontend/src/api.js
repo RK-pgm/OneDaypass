@@ -344,6 +344,7 @@ const MOCK_PLAN = {
 
 const MOCK_ORDER = {
   orderId: 'o_demo001',
+  isDemo: true,
   amount: 598,
   discount: 0,
   status: 'pending',
@@ -354,6 +355,7 @@ const MOCK_ORDER = {
 
 const MOCK_PASS = {
   id: 'p_demo001',
+  isDemo: true,
   code: 'DP-4F7K2',
   status: 'active',
   validDate: new Date().toISOString().split('T')[0],

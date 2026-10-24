@@ -37,6 +37,7 @@ db.exec(`
     amount INTEGER NOT NULL CHECK(amount >= 0),
     discount INTEGER NOT NULL DEFAULT 0 CHECK(discount >= 0),
     pointsUsed INTEGER NOT NULL DEFAULT 0 CHECK(pointsUsed >= 0),
+    isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1)),
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','paid','cancelled')),
     createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
@@ -110,5 +111,9 @@ db.exec(`
 if (!db.prepare('PRAGMA table_info(shops)').all().some((column) => column.name === 'isDemo')) {
   db.exec('ALTER TABLE shops ADD COLUMN isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1))');
 }
+if (!db.prepare('PRAGMA table_info(orders)').all().some((column) => column.name === 'isDemo')) {
+  db.exec('ALTER TABLE orders ADD COLUMN isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1))');
+}
+db.exec("UPDATE shops SET isDemo = 1 WHERE id LIKE 'demo\\_%' ESCAPE '\\' AND isDemo = 0");
 
 module.exports = db;

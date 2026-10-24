@@ -389,13 +389,23 @@ export default function PassPage() {
             {/* Left Ticket Info */}
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <span className="badge bg-brand-100 text-brand-800 font-extrabold text-xs uppercase tracking-wider border border-brand-300">
-                  🎟️ Official DayPass Bangkok
+                <span className={`badge font-extrabold text-xs uppercase tracking-wider border ${
+                  pass.isDemo
+                    ? 'bg-amber-100 text-amber-900 border-amber-300'
+                    : 'bg-brand-100 text-brand-800 border-brand-300'
+                }`}>
+                  {pass.isDemo ? '🧪 พาสตัวอย่าง · Prototype' : '🎟️ Official DayPass Bangkok'}
                 </span>
                 <span className="badge bg-emerald-100 text-emerald-800 font-bold text-xs border border-emerald-300">
-                  ● ใช้งานได้
+                  {pass.isDemo ? '● ตัวอย่างเท่านั้น' : '● ใช้งานได้'}
                 </span>
               </div>
+
+              {pass.isDemo && (
+                <p className="mb-3 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900" role="note">
+                  พาสนี้สร้างเพื่อสาธิตการใช้งานเท่านั้น ไม่ใช่บัตรที่ใช้แลกรับสิทธิประโยชน์หรือยืนยันการชำระเงินจริง
+                </p>
+              )}
 
               <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-900 tracking-tight mt-1">
                 {pass.plan.title}
@@ -431,7 +441,9 @@ export default function PassPage() {
             <div className="flex sm:flex-row md:flex-col items-center gap-4 flex-shrink-0">
               <div className="bg-white p-3 rounded-2xl shadow-xl shadow-slate-300/50 border-2 border-slate-200 flex flex-col items-center">
                 <QRCodeSVG value={pass.code} size={96} bgColor="#ffffff" fgColor="#0f172a" level="M" />
-                <span className="text-[10px] text-slate-700 font-mono font-bold mt-1">สแกนหน้าร้าน</span>
+                <span className="text-[10px] text-slate-700 font-mono font-bold mt-1">
+                  {pass.isDemo ? 'QR ตัวอย่าง' : 'สแกนหน้าร้าน'}
+                </span>
               </div>
 
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold shadow-sm">
@@ -451,7 +463,9 @@ export default function PassPage() {
           <div className="flex items-center justify-between gap-3 mb-4">
             <div>
               <h2 id="purchase-details-title" className="font-extrabold text-slate-900">รายละเอียดการซื้อ</h2>
-              <p className="text-xs text-slate-500 mt-0.5">ข้อมูลคำสั่งซื้อที่ออกพาสใบนี้</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {pass.isDemo ? 'ข้อมูลตัวอย่าง ไม่มีการเรียกเก็บเงินจริง' : 'ข้อมูลคำสั่งซื้อที่ออกพาสใบนี้'}
+              </p>
             </div>
             <span className="text-2xl" aria-hidden="true">🧾</span>
           </div>
@@ -467,7 +481,7 @@ export default function PassPage() {
               <span className="font-bold text-slate-900">{purchaseDate}</span>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">
-              <span className="block text-xs text-slate-500">ยอดชำระ</span>
+              <span className="block text-xs text-slate-500">{pass.isDemo ? 'ยอดตัวอย่าง' : 'ยอดชำระ'}</span>
               <span className="font-bold text-slate-900">{purchaseAmount.toLocaleString()} บาท</span>
             </div>
             <div className="rounded-xl bg-slate-50 p-3">

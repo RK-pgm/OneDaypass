@@ -60,8 +60,8 @@ async function runE2ETest() {
     })
   });
   const o = await oRes.json();
-  assert(o.orderId && o.qrDataUrl, 'Order creation failed');
-  console.log(`✅ 4. Order created: ${o.orderId} (PromptPay QR generated, amount: ฿${o.amount})`);
+  assert(o.orderId && o.isDemo && !o.qrDataUrl, 'Prototype order should not create a payment QR');
+  console.log(`✅ 4. Demo order created without real payment (amount shown: ฿${o.amount})`);
 
   // 5. Confirm Order (Mock Payment)
   const cRes = await fetch(`${base}/api/orders/${o.orderId}/confirm`, {
@@ -78,6 +78,7 @@ async function runE2ETest() {
   const pass = await passRes.json();
   assert(
     pass.id === c.passId &&
+      pass.isDemo &&
       Array.isArray(pass.coupons) &&
       pass.purchase?.orderId === o.orderId &&
       pass.purchase?.amount === o.amount &&
@@ -90,6 +91,7 @@ async function runE2ETest() {
   const historyRes = await fetch(`${base}/api/passes?deviceId=${deviceId}`);
   const history = await historyRes.json();
   assert(Array.isArray(history.history) && history.history.some((entry) => entry.passId === pass.id), 'Pass history failed');
+  assert(history.history.find((entry) => entry.passId === pass.id).isDemo, 'Pass history did not mark the prototype pass as a demo');
   assert(history.history.find((entry) => entry.passId === pass.id).pointsEarned > 0, 'Pass history cashback was not recorded');
   console.log(`✅ 7. Pass history fetched for device: ${history.history.length} pass(es)`);
 

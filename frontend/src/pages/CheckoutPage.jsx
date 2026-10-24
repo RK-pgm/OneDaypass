@@ -27,7 +27,7 @@ function CheckoutContent({ orderId }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState('qr'); // 'qr' | 'confirming' | 'done'
-  const canSimulatePayment = USE_MOCK || import.meta.env.DEV;
+  const canSimulatePayment = Boolean(order?.isDemo) || USE_MOCK || import.meta.env.DEV;
 
   useEffect(() => {
     getPoints(getDeviceId())
@@ -112,11 +112,15 @@ function CheckoutContent({ orderId }) {
             ←
           </button>
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">ชำระเงินผ่าน PromptPay</h1>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+              {order.isDemo ? 'พรีวิวการซื้อพาส (ตัวอย่าง)' : 'ชำระเงินผ่าน PromptPay'}
+            </h1>
             <p className="text-slate-500 text-xs sm:text-sm">
-              {canSimulatePayment
-                ? 'โหมดสาธิตเท่านั้น QR นี้ไม่รับเงินจริงและไม่ควรนำไปสแกนจ่าย'
-                : 'ตรวจสอบชื่อผู้รับและยอดเงินในแอปธนาคารก่อนชำระ'}
+              {order.isDemo
+                ? 'ไม่มีการชำระเงินจริงหรือเรียกเก็บเงิน กดยืนยันเพื่อดูตัวอย่างพาสได้'
+                : canSimulatePayment
+                  ? 'โหมดสาธิตเท่านั้น QR นี้ไม่รับเงินจริงและไม่ควรนำไปสแกนจ่าย'
+                  : 'ตรวจสอบชื่อผู้รับและยอดเงินในแอปธนาคารก่อนชำระ'}
             </p>
           </div>
         </div>
@@ -124,37 +128,48 @@ function CheckoutContent({ orderId }) {
         {/* 2-Column Responsive Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8 items-start">
           
-          {/* Left Column: QR Code & PromptPay Info */}
+          {/* Left Column: Demo preview or PromptPay QR */}
           <div className="md:col-span-6 flex flex-col items-center">
-            <div className="glass-card w-full flex flex-col items-center p-6 border-slate-200 bg-white shadow-xl shadow-slate-200/60">
-              
-              <div className="flex items-center gap-2 mb-4">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xs uppercase font-bold tracking-wider text-slate-700">
-                  {canSimulatePayment ? 'QR จำลองสำหรับสาธิต' : 'พร้อมเพย์ (PromptPay QR)'}
+            {order.isDemo ? (
+              <div className="glass-card w-full flex flex-col items-center p-8 border-amber-200 bg-amber-50 text-center shadow-xl shadow-amber-100/60">
+                <span className="text-5xl" aria-hidden="true">🧪</span>
+                <h2 className="mt-4 text-xl font-black text-amber-950">ตัวอย่างเท่านั้น</h2>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-amber-900">
+                  ระบบจะสร้างพาสตัวอย่างเพื่อทดลองดูหน้าตั๋ว ไม่มีการโอนเงินจริงและไม่มีการเรียกเก็บเงิน
+                </p>
+                <span className="mt-4 rounded-full border border-amber-300 bg-white px-4 py-2 text-xs font-bold text-amber-900">
+                  DEMO · ไม่ใช่รายการชำระเงินจริง
                 </span>
               </div>
+            ) : (
+              <div className="glass-card w-full flex flex-col items-center p-6 border-slate-200 bg-white shadow-xl shadow-slate-200/60">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs uppercase font-bold tracking-wider text-slate-700">
+                    {canSimulatePayment ? 'QR จำลองสำหรับสาธิต' : 'พร้อมเพย์ (PromptPay QR)'}
+                  </span>
+                </div>
 
-              {/* QR Container */}
-              <div className="bg-white p-5 rounded-2xl shadow-xl shadow-slate-200/80 border-2 border-slate-200 flex flex-col items-center">
-                <QRCodeSVG
-                  value={qrValue}
-                  size={210}
-                  bgColor="#ffffff"
-                  fgColor="#0f172a"
-                  level="M"
-                />
-                <div className="mt-3 flex items-center gap-1.5 text-slate-900 text-xs font-bold font-mono">
-                  <span>{canSimulatePayment ? '🧪 รหัสตัวอย่าง — ห้ามชำระเงินจริง' : `📱 ยอดชำระ ${finalAmount.toLocaleString()} บาท`}</span>
+                <div className="bg-white p-5 rounded-2xl shadow-xl shadow-slate-200/80 border-2 border-slate-200 flex flex-col items-center">
+                  <QRCodeSVG
+                    value={qrValue}
+                    size={210}
+                    bgColor="#ffffff"
+                    fgColor="#0f172a"
+                    level="M"
+                  />
+                  <div className="mt-3 flex items-center gap-1.5 text-slate-900 text-xs font-bold font-mono">
+                    <span>{canSimulatePayment ? '🧪 รหัสตัวอย่าง — ห้ามชำระเงินจริง' : `📱 ยอดชำระ ${finalAmount.toLocaleString()} บาท`}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
+                  {canSimulatePayment
+                    ? 'การกดยืนยันด้านล่างเป็นเพียงการจำลองออกพาส'
+                    : 'โปรดตรวจสอบชื่อบัญชีและยอดเงินที่แสดงในแอปธนาคารก่อนยืนยัน'}
                 </div>
               </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
-                {canSimulatePayment
-                  ? 'การกดยืนยันด้านล่างเป็นเพียงการจำลองออกพาส'
-                  : 'โปรดตรวจสอบชื่อบัญชีและยอดเงินที่แสดงในแอปธนาคารก่อนยืนยัน'}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Right Column: Order Breakdown & Points Discount */}
@@ -162,7 +177,9 @@ function CheckoutContent({ orderId }) {
             
             {/* Amount card */}
             <div className="glass-card p-6 text-center md:text-left bg-gradient-to-br from-brand-50 via-white to-amber-50 border-brand-200">
-              <span className="text-slate-500 text-xs uppercase tracking-wider font-bold">ยอดชำระสุทธิ</span>
+              <span className="text-slate-500 text-xs uppercase tracking-wider font-bold">
+                {order.isDemo ? 'ยอดตัวอย่าง (ไม่เรียกเก็บเงินจริง)' : 'ยอดชำระสุทธิ'}
+              </span>
               <div className="flex items-baseline justify-center md:justify-start gap-2 mt-1">
                 <span className="text-4xl sm:text-5xl font-extrabold text-brand-600 font-mono">
                   {finalAmount.toLocaleString()}
@@ -245,7 +262,9 @@ function CheckoutContent({ orderId }) {
                 </div>
                 <div className="flex justify-between py-1.5">
                   <span className="text-slate-600">สถานะ</span>
-                  <span className="text-amber-600 font-bold">รอการชำระเงิน</span>
+                  <span className="text-amber-600 font-bold">
+                    {order.isDemo ? 'ตัวอย่าง · ยังไม่มีการชำระเงิน' : 'รอการชำระเงิน'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -259,7 +278,9 @@ function CheckoutContent({ orderId }) {
             {step === 'done' && (
               <div className="glass-card border-emerald-300 bg-emerald-50 text-emerald-800 text-center py-4 animate-bounce-in shadow-md">
                 <div className="text-2xl mb-1">🎉</div>
-                <p className="font-extrabold text-base">ชำระเงินสำเร็จแล้ว!</p>
+                <p className="font-extrabold text-base">
+                  {order.isDemo ? 'สร้างพาสตัวอย่างแล้ว!' : 'ชำระเงินสำเร็จแล้ว!'}
+                </p>
                 <p className="text-xs text-slate-600 mt-1">กำลังพาคุณไปยังหน้าพาสดิจิทัล...</p>
               </div>
             )}
@@ -275,19 +296,21 @@ function CheckoutContent({ orderId }) {
                 {confirming ? (
                   <>
                     <span className="animate-spin text-lg">⟳</span>
-                    <span>กำลังตรวจสอบยอดโอน...</span>
+                    <span>{order.isDemo ? 'กำลังสร้างพาสตัวอย่าง...' : 'กำลังตรวจสอบยอดโอน...'}</span>
                   </>
                 ) : step === 'done' ? (
                   '✅ ยืนยันเรียบร้อยแล้ว!'
                 ) : canSimulatePayment ? (
-                  USE_MOCK ? '🧪 จำลองการรับพาส (DEMO)' : '✅ ยืนยันการชำระเงิน (โหมดพัฒนา)'
+                  order.isDemo || USE_MOCK
+                    ? '🧪 ดูพาสตัวอย่าง (ไม่มีการชำระเงินจริง)'
+                    : '✅ ยืนยันการชำระเงิน (โหมดพัฒนา)'
                 ) : (
                   'ระบบยืนยันการชำระเงินยังไม่พร้อม'
                 )}
               </button>
               <p className="text-center text-slate-400 text-xs mt-2">
                 {canSimulatePayment
-                  ? 'โหมดตัวอย่างเท่านั้น ปุ่มนี้ไม่ได้ตรวจสอบหรือรับเงินจริง'
+                  ? 'ตัวอย่างเท่านั้น ไม่มีการตัดเงินหรือยืนยันการชำระเงินจริง'
                   : 'ระบบจะเปิดปุ่มนี้เมื่อเชื่อมต่อการตรวจสอบการชำระเงินจริงแล้ว'}
               </p>
             </div>
