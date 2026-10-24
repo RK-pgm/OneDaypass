@@ -4,9 +4,13 @@ import { getDeviceId, getPoints, getPassHistory, resetDeviceId, updateAccountPro
 import {
   PROVINCES,
   REGIONS,
-  getAmphoes,
   detectLocationFromGPS,
+  findAdministrativeDistrict,
+  findAdministrativeSubdistrict,
+  getAdministrativeDistricts,
+  getAdministrativeSubdistricts,
 } from '../data/locations';
+import { encodeProfilePhoto } from '../utils/profilePhoto';
 
 const STYLE_PROFILES = {
   chill:     { label: 'สายชิล สบายๆ', icon: '☕' },
@@ -26,6 +30,7 @@ const RANK_BADGES = [
   { min: 150, label: '🥇 Pro Traveler',color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
   { min: 300, label: '💎 ตำนาน DayPass',color: 'text-purple-700 bg-purple-50 border-purple-200' },
 ];
+const todayDate = new Date().toISOString().slice(0, 10);
 
 function getRank(points) {
   let rank = RANK_BADGES[0];
@@ -37,23 +42,28 @@ function getRank(points) {
 
 function loadProfile() {
   try {
-    const fromProfile = localStorage.getItem('daypass_user_profile');
-    if (fromProfile) return JSON.parse(fromProfile);
-    const fromAuth = localStorage.getItem('daypass_user_auth');
-    if (fromAuth) {
-      const a = JSON.parse(fromAuth);
-      return {
-        nickname: a.nickname || '',
-        phoneOrEmail: a.phoneOrEmail || '',
-        province: a.province || 'bangkok',
-        district: a.amphoe || 'samphanthawong',
-        tambon: a.tambon || 'ตลาดน้อย',
-        travelStyle: a.travelStyle || 'chill',
-        lat: a.lat,
-        lng: a.lng,
-      };
-    }
-    return null;
+    const fromProfile = JSON.parse(localStorage.getItem('daypass_user_profile') || 'null');
+    const fromAuth = JSON.parse(localStorage.getItem('daypass_user_auth') || 'null');
+    if (!fromProfile && !fromAuth) return null;
+
+    const profile = {
+      ...fromAuth,
+      ...fromProfile,
+      district: fromProfile?.district || fromAuth?.amphoe || '',
+    };
+    const province = PROVINCES.some((item) => item.id === profile.province) ? profile.province : 'bangkok';
+    const districts = getAdministrativeDistricts(province);
+    const district = findAdministrativeDistrict(province, profile.district) || districts[0];
+    const subdistricts = getAdministrativeSubdistricts(province, district?.id);
+    const tambon = findAdministrativeSubdistrict(province, district?.id, profile.tambon) || subdistricts[0];
+
+    return {
+      ...profile,
+      province,
+      district: district?.id || '',
+      tambon: tambon?.id || '',
+      travelStyle: profile.travelStyle || 'chill',
+    };
   } catch {
     return null;
   }
@@ -65,10 +75,15 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState(() => loadProfile() || {
     nickname: '',
+    fullName: '',
     phoneOrEmail: '',
+    email: '',
+    dateOfBirth: '',
+    currentAddress: '',
+    profilePhoto: '',
     province: 'bangkok',
-    district: 'samphanthawong',
-    tambon: 'ตลาดน้อย',
+    district: getAdministrativeDistricts('bangkok').find((item) => item.name === 'สัมพันธวงศ์')?.id || '',
+    tambon: '',
     travelStyle: 'chill',
     lat: null,
     lng: null,
@@ -82,7 +97,7 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'history' | 'points'
 
-  // GPS state
+  // Location state
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsMessage, setGpsMessage] = useState('');
   const [gpsError, setGpsError] = useState('');
@@ -99,22 +114,27 @@ export default function ProfilePage() {
   }, [deviceId]);
 
   const rank = getRank(points.totalPoints);
-  const amphoes = getAmphoes(profile.province);
+  const amphoes = getAdministrativeDistricts(profile.province);
+  const tambons = getAdministrativeSubdistricts(profile.province, profile.district);
   const currentProvince = PROVINCES.find((p) => p.id === profile.province) || PROVINCES[0];
 
-  // GPS Detection Handler
+  // Current location handler
   async function handleDetectGPS() {
     setGpsLoading(true);
     setGpsError('');
-    setGpsMessage('กำลังเชื่อมต่อสัญญาณดาวเทียม GPS...');
+    setGpsMessage('กำลังระบุตำแหน่งปัจจุบัน...');
 
     try {
       const detected = await detectLocationFromGPS();
+      const district = findAdministrativeDistrict(detected.province, detected.amphoeName)
+        || getAdministrativeDistricts(detected.province)[0];
+      const tambon = findAdministrativeSubdistrict(detected.province, district?.id, detected.tambon)
+        || getAdministrativeSubdistricts(detected.province, district?.id)[0];
       setProfile((prev) => ({
         ...prev,
         province: detected.province,
-        district: detected.amphoe || prev.district,
-        tambon: detected.tambon || prev.tambon,
+        district: district?.id || '',
+        tambon: tambon?.id || '',
         lat: detected.lat,
         lng: detected.lng,
         gpsAccuracy: detected.accuracy,
@@ -124,10 +144,24 @@ export default function ProfilePage() {
       setGpsMessage(`✓ ระบุพิกัดสำเร็จ: ${detected.provinceName} (ความแม่นยำ ±${detected.accuracy}ม.)`);
       setTimeout(() => setGpsMessage(''), 4500);
     } catch (err) {
-      setGpsError(err.message || 'ไม่สามารถค้นหาพิกัด GPS ได้');
+      setGpsError(err.message || 'ไม่สามารถระบุตำแหน่งปัจจุบันได้');
       setTimeout(() => setGpsError(''), 5000);
     } finally {
       setGpsLoading(false);
+    }
+  }
+
+  async function handleProfilePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setGpsError('');
+    try {
+      const profilePhoto = await encodeProfilePhoto(file);
+      setProfile((prev) => ({ ...prev, profilePhoto }));
+    } catch (err) {
+      setGpsError(err.message || 'ไม่สามารถใช้รูปนี้ได้ กรุณาเลือกรูปใหม่');
+    } finally {
+      e.target.value = '';
     }
   }
 
@@ -138,7 +172,7 @@ export default function ProfilePage() {
     setGpsError('');
 
     const provObj = PROVINCES.find((p) => p.id === profile.province);
-    const districtObj = getAmphoes(profile.province).find((a) => a.id === profile.district);
+    const districtObj = amphoes.find((a) => a.id === profile.district);
     const updatedProfile = {
       ...profile,
       homeBaseName: `${provObj?.name || profile.province} - ${profile.district || ''} (${profile.tambon || 'ในเมือง'})`,
@@ -151,6 +185,11 @@ export default function ProfilePage() {
       if (existingAuth?.accountId) {
         const { account } = await updateAccountProfile(existingAuth.accountId, {
           nickname: profile.nickname.trim(),
+          ...(profile.fullName?.trim() ? { fullName: profile.fullName.trim() } : {}),
+          ...(profile.email?.trim() ? { email: profile.email.trim() } : {}),
+          ...(profile.dateOfBirth ? { dateOfBirth: profile.dateOfBirth } : {}),
+          ...(profile.currentAddress?.trim() ? { currentAddress: profile.currentAddress.trim() } : {}),
+          ...(profile.profilePhoto ? { profilePhoto: profile.profilePhoto } : {}),
           province: profile.province,
           provinceName: provObj?.name || profile.province,
           provinceEmoji: provObj?.emoji || '🏙️',
@@ -165,6 +204,11 @@ export default function ProfilePage() {
         syncedAuth = {
           ...existingAuth,
           nickname: profile.nickname.trim(),
+          fullName: profile.fullName,
+          email: profile.email,
+          dateOfBirth: profile.dateOfBirth,
+          currentAddress: profile.currentAddress,
+          profilePhoto: profile.profilePhoto,
           province: profile.province,
           provinceName: provObj?.name || profile.province,
           provinceEmoji: provObj?.emoji || '🏙️',
@@ -179,6 +223,11 @@ export default function ProfilePage() {
       const syncedProfile = {
         ...updatedProfile,
         nickname: profile.nickname.trim(),
+        fullName: syncedAuth?.fullName || profile.fullName,
+        email: syncedAuth?.email || profile.email,
+        dateOfBirth: syncedAuth?.dateOfBirth || profile.dateOfBirth,
+        currentAddress: syncedAuth?.currentAddress || profile.currentAddress,
+        profilePhoto: syncedAuth?.profilePhoto || profile.profilePhoto,
         phoneOrEmail: syncedAuth?.phoneOrEmail || profile.phoneOrEmail,
       };
       localStorage.setItem('daypass_user_profile', JSON.stringify(syncedProfile));
@@ -222,7 +271,7 @@ export default function ProfilePage() {
                   77 จังหวัด
                 </span>
               </div>
-              <p className="text-slate-500 text-xs mt-0.5">ตั้งค่าที่อยู่ Home Base และพิกัด GPS ท่องเที่ยว</p>
+              <p className="text-slate-500 text-xs mt-0.5">จัดการข้อมูลโปรไฟล์ ที่อยู่บ้าน และตำแหน่งปัจจุบัน</p>
             </div>
           </div>
 
@@ -238,13 +287,16 @@ export default function ProfilePage() {
         {/* Avatar + Rank + Points Card */}
         <div className="glass-card bg-gradient-to-br from-brand-50 via-amber-50 to-orange-50 border-brand-200 mb-5 p-4 sm:p-5 rounded-3xl shadow-sm flex flex-col sm:flex-row items-center gap-4">
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-tr from-brand-500 to-amber-400 flex items-center justify-center text-3xl sm:text-4xl shadow-lg shadow-brand-500/25 flex-shrink-0 border-2 border-white">
-            {profile.travelStyle ? STYLE_PROFILES[profile.travelStyle]?.icon || '🧭' : '🧭'}
+            {profile.profilePhoto
+              ? <img src={profile.profilePhoto} alt="รูปโปรไฟล์" className="w-full h-full object-cover" />
+              : profile.travelStyle ? STYLE_PROFILES[profile.travelStyle]?.icon || '🧭' : '🧭'}
           </div>
 
           <div className="flex-1 min-w-0 text-center sm:text-left">
             <div className="font-black text-slate-900 text-lg sm:text-xl truncate">
               {profile.nickname || 'นักเดินทาง OneDaypass'}
             </div>
+            {profile.fullName && <div className="text-xs text-slate-600 mt-0.5">{profile.fullName}</div>}
             <div className="flex items-center justify-center sm:justify-start gap-2 flex-wrap mt-1">
               <span className={`badge border text-xs font-bold ${rank.color}`}>
                 {rank.label}
@@ -255,7 +307,7 @@ export default function ProfilePage() {
               {profile.lat && profile.lng && (
                 <span className="badge bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  GPS พร้อม
+                  ระบุตำแหน่งแล้ว
                 </span>
               )}
             </div>
@@ -277,7 +329,7 @@ export default function ProfilePage() {
         {/* ── Tabs ── */}
         <div className="flex p-1 bg-slate-100 rounded-2xl mb-5">
           {[
-            { id: 'profile', label: '👤 ข้อมูล & GPS' },
+            { id: 'profile', label: '👤 ข้อมูลโปรไฟล์' },
             { id: 'history', label: `🎟️ ประวัติพาส (${passHistory.length})` },
             { id: 'points',  label: '🌟 แต้มสะสม' },
           ].map((tab) => (
@@ -295,11 +347,11 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        {/* ──────── TAB 1: PROFILE & GPS ──────── */}
+        {/* ──────── TAB 1: PROFILE & LOCATION ──────── */}
         {activeTab === 'profile' && (
           <div className="space-y-4">
 
-            {/* GPS Auto-Detect Banner */}
+            {/* Current location banner */}
             <div className="p-4 rounded-3xl bg-gradient-to-r from-sky-50 via-indigo-50 to-amber-50 border border-sky-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="flex items-center gap-3 text-center sm:text-left">
                 <div className="w-11 h-11 rounded-2xl bg-sky-500 text-white flex items-center justify-center text-xl flex-shrink-0 shadow-md shadow-sky-500/20">
@@ -307,7 +359,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <h3 className="font-black text-slate-900 text-sm">
-                    ระบุตำแหน่งปัจจุบันจากดาวเทียม GPS
+                    ระบุตำแหน่งปัจจุบันของคุณ
                   </h3>
                   <p className="text-xs text-slate-600 mt-0.5">
                     อัปเดตจังหวัด อำเภอ และพิกัดจริงเพื่อความแม่นยำในการแนะนำสถานที่
@@ -330,13 +382,13 @@ export default function ProfilePage() {
                 ) : (
                   <>
                     <span>📍</span>
-                    <span>ดึงพิกัด GPS อัตโนมัติ</span>
+                    <span>ใช้ตำแหน่งปัจจุบัน</span>
                   </>
                 )}
               </button>
             </div>
 
-            {/* GPS Feedback message */}
+            {/* Location feedback */}
             {gpsMessage && (
               <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-fade-in">
                 <span>✓</span>
@@ -350,13 +402,13 @@ export default function ProfilePage() {
               </div>
             )}
 
-            {/* Current GPS Coordinates Display */}
+            {/* Current coordinates */}
             {profile.lat && profile.lng && (
               <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-500 font-bold">●</span>
                   <span className="font-mono font-bold text-slate-800">
-                    GPS: {Number(profile.lat).toFixed(4)}, {Number(profile.lng).toFixed(4)}
+                    พิกัดปัจจุบัน: {Number(profile.lat).toFixed(4)}, {Number(profile.lng).toFixed(4)}
                   </span>
                   {profile.gpsAccuracy && (
                     <span className="text-[11px] text-slate-500">
@@ -414,6 +466,68 @@ export default function ProfilePage() {
                     />
                     <p id="profile-contact-note" className="mt-1 text-[11px] text-slate-500">ใช้เป็นข้อมูลเข้าสู่ระบบ ติดต่อฝ่ายดูแลหากต้องการเปลี่ยน</p>
                   </div>
+                  <div>
+                    <label htmlFor="input-profile-full-name" className="text-xs font-bold text-slate-600 mb-1 block">ชื่อ-นามสกุล</label>
+                    <input
+                      id="input-profile-full-name"
+                      type="text"
+                      maxLength={120}
+                      value={profile.fullName || ''}
+                      onChange={(e) => setProfile((p) => ({ ...p, fullName: e.target.value }))}
+                      className="input-field py-2.5 text-sm"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="input-profile-email" className="text-xs font-bold text-slate-600 mb-1 block">อีเมล</label>
+                    <input
+                      id="input-profile-email"
+                      type="email"
+                      maxLength={254}
+                      value={profile.email || ''}
+                      onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+                      className="input-field py-2.5 text-sm"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="input-profile-date-of-birth" className="text-xs font-bold text-slate-600 mb-1 block">วันเดือนปีเกิด</label>
+                    <input
+                      id="input-profile-date-of-birth"
+                      type="date"
+                      max={todayDate}
+                      value={profile.dateOfBirth || ''}
+                      onChange={(e) => setProfile((p) => ({ ...p, dateOfBirth: e.target.value }))}
+                      className="input-field py-2.5 text-sm"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label htmlFor="input-profile-current-address" className="text-xs font-bold text-slate-600 mb-1 block">ที่อยู่ปัจจุบัน</label>
+                    <textarea
+                      id="input-profile-current-address"
+                      rows={2}
+                      maxLength={300}
+                      value={profile.currentAddress || ''}
+                      onChange={(e) => setProfile((p) => ({ ...p, currentAddress: e.target.value }))}
+                      className="input-field py-2.5 text-sm resize-y"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full overflow-hidden bg-slate-100 border border-slate-200 flex items-center justify-center text-2xl shrink-0">
+                      {profile.profilePhoto ? <img src={profile.profilePhoto} alt="ตัวอย่างรูปโปรไฟล์" className="w-full h-full object-cover" /> : '👤'}
+                    </div>
+                    <div className="min-w-0">
+                      <label htmlFor="input-profile-photo" className="text-xs font-bold text-slate-600 mb-1 block">รูปโปรไฟล์</label>
+                      <input
+                        id="input-profile-photo"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        onChange={handleProfilePhotoChange}
+                        className="block max-w-full text-[11px] text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-slate-100 file:px-2.5 file:py-2 file:text-[11px] file:font-bold file:text-slate-700"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">รูปจะถูกย่อก่อนบันทึกและซิงก์กับบัญชี</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
@@ -428,6 +542,22 @@ export default function ProfilePage() {
                     <span className="text-sm font-bold text-slate-800">
                       {profile.phoneOrEmail || '(ยังไม่ได้ระบุ)'}
                     </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">ชื่อ-นามสกุล:</span>
+                    <span className="text-sm font-bold text-slate-800">{profile.fullName || '(ยังไม่ได้ระบุ)'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">อีเมล:</span>
+                    <span className="text-sm font-bold text-slate-800">{profile.email || '(ยังไม่ได้ระบุ)'}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block mb-0.5">วันเดือนปีเกิด:</span>
+                    <span className="text-sm font-bold text-slate-800">{profile.dateOfBirth || '(ยังไม่ได้ระบุ)'}</span>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 block mb-0.5">ที่อยู่ปัจจุบัน:</span>
+                    <span className="text-sm font-bold text-slate-800">{profile.currentAddress || '(ยังไม่ได้ระบุ)'}</span>
                   </div>
                 </div>
               )}
@@ -461,11 +591,13 @@ export default function ProfilePage() {
                       value={profile.province}
                       onChange={(e) => {
                         const newProv = e.target.value;
-                        const newAmphoes = getAmphoes(newProv);
+                        const newAmphoes = getAdministrativeDistricts(newProv);
+                        const newDistrict = newAmphoes[0]?.id || '';
                         setProfile((p) => ({
                           ...p,
                           province: newProv,
-                          district: newAmphoes[0]?.id || '',
+                          district: newDistrict,
+                          tambon: getAdministrativeSubdistricts(newProv, newDistrict)[0]?.id || '',
                         }));
                       }}
                       className="input-field py-2.5 text-xs font-semibold"
@@ -494,7 +626,14 @@ export default function ProfilePage() {
                       <select
                         id="select-profile-district"
                         value={profile.district}
-                        onChange={(e) => setProfile((p) => ({ ...p, district: e.target.value }))}
+                        onChange={(e) => {
+                          const newDistrict = e.target.value;
+                          setProfile((p) => ({
+                            ...p,
+                            district: newDistrict,
+                            tambon: getAdministrativeSubdistricts(profile.province, newDistrict)[0]?.id || '',
+                          }));
+                        }}
                         className="input-field py-2.5 text-xs font-semibold"
                       >
                         {amphoes.map((a) => (
@@ -505,19 +644,21 @@ export default function ProfilePage() {
                       </select>
                     </div>
 
-                    {/* Tambon Text Input */}
+                    {/* Subdistrict selector */}
                     <div>
                       <label className="text-xs font-bold text-slate-600 mb-1 block">
                         ตำบล / แขวง
                       </label>
-                      <input
-                        id="input-profile-tambon"
-                        type="text"
+                      <select
+                        id="select-profile-tambon"
                         value={profile.tambon || ''}
                         onChange={(e) => setProfile((p) => ({ ...p, tambon: e.target.value }))}
-                        placeholder="เช่น ตลาดน้อย, สุเทพ, บางแสน"
                         className="input-field py-2.5 text-xs"
-                      />
+                      >
+                        {tambons.map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>

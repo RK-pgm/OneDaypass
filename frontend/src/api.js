@@ -588,6 +588,13 @@ export async function confirmOrder(orderId, slipImageName) {
       status: 'active',
       validDate: now.toISOString().split('T')[0],
       purchaseDateText: thaiDateStr,
+      purchase: {
+        orderId: order.orderId,
+        amount: order.amount || 299,
+        discount: order.discount || 0,
+        pointsUsed: order.pointsUsed || 0,
+        purchasedAt: now.toISOString(),
+      },
       plan: targetPlan,
       people: order.people || MOCK_PASS.people,
       totalAmount: order.amount || 299,

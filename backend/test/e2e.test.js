@@ -56,7 +56,14 @@ async function runE2ETest() {
   // 6. Get Pass Details
   const passRes = await fetch(`${base}/api/passes/${c.passId}`);
   const pass = await passRes.json();
-  assert(pass.id === c.passId && Array.isArray(pass.coupons), 'Pass fetch failed');
+  assert(
+    pass.id === c.passId &&
+      Array.isArray(pass.coupons) &&
+      pass.purchase?.orderId === o.orderId &&
+      pass.purchase?.amount === o.amount &&
+      pass.purchase?.purchasedAt,
+    'Pass details or purchase receipt failed'
+  );
   console.log(`✅ 6. Pass fetched: Status ${pass.status}, ${pass.coupons.length} coupons attached`);
 
   // 7. Verify purchase history and cashback are tied to the same device
@@ -193,18 +200,38 @@ async function runE2ETest() {
 
   // 14. Register an account, migrate device data, and authenticate on another device
   const contact = `auth-test-${Date.now()}@example.test`;
+  const incompleteRegisterRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Incomplete',
+      phoneOrEmail: `incomplete-${contact}`,
+      password: 'test-password-123',
+      province: 'bangkok',
+      amphoe: 'สัมพันธวงศ์',
+      tambon: 'ตลาดน้อย',
+      previousDeviceId: `incomplete-${deviceId}`,
+    }),
+  });
+  assert(incompleteRegisterRes.status === 400, 'Registration accepted an incomplete required profile');
+
   const registerRes = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       nickname: 'Auth Test',
+      fullName: 'Auth Example',
       phoneOrEmail: contact,
+      email: `profile-${contact}`,
+      dateOfBirth: '1995-06-15',
+      currentAddress: '123 ถนนสุขุมวิท เขตวัฒนา กรุงเทพมหานคร',
+      profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
       password: 'test-password-123',
       province: 'bangkok',
       provinceName: 'กรุงเทพมหานคร',
       provinceEmoji: '🏙️',
-      amphoe: 'samphanthawong',
-      amphoeName: 'เขตสัมพันธวงศ์',
+      amphoe: 'สัมพันธวงศ์',
+      amphoeName: 'สัมพันธวงศ์',
       tambon: 'ตลาดน้อย',
       lat: 13.7313,
       lng: 100.5105,
@@ -213,6 +240,7 @@ async function runE2ETest() {
   });
   const registered = await registerRes.json();
   assert(registerRes.status === 201 && registered.account?.accountId, 'Account registration failed');
+  assert(registered.account.fullName === 'Auth Example' && registered.account.profilePhoto?.startsWith('data:image/png;base64,'), 'Required profile details were not saved');
   const accountId = registered.account.accountId;
 
   const migratedHistoryRes = await fetch(`${base}/api/passes?deviceId=${accountId}`);
@@ -251,10 +279,15 @@ async function runE2ETest() {
       accountId,
       profile: {
         nickname: 'Updated Auth Test',
+        fullName: 'Updated Example',
+        email: 'updated@example.test',
+        dateOfBirth: '1996-07-16',
+        currentAddress: '99 ถนนนิมมานเหมินท์ อำเภอเมืองเชียงใหม่',
+        profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
         province: 'chiangmai',
         provinceName: 'เชียงใหม่',
         provinceEmoji: '🌿',
-        district: 'mueang',
+        district: 'เมืองเชียงใหม่',
         districtName: 'เมืองเชียงใหม่',
         tambon: 'สุเทพ',
         lat: 18.7883,
@@ -263,14 +296,14 @@ async function runE2ETest() {
     }),
   });
   const updatedProfile = await profileRes.json();
-  assert(profileRes.ok && updatedProfile.account?.nickname === 'Updated Auth Test', 'Account profile update failed');
+  assert(profileRes.ok && updatedProfile.account?.nickname === 'Updated Auth Test' && updatedProfile.account.fullName === 'Updated Example', 'Account profile update failed');
   const reloginRes = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phoneOrEmail: contact, password: 'test-password-123' }),
   });
   const reloggedIn = await reloginRes.json();
-  assert(reloggedIn.account?.province === 'chiangmai', 'Updated profile was not shared across login sessions');
+  assert(reloggedIn.account?.province === 'chiangmai' && reloggedIn.account?.email === 'updated@example.test', 'Updated profile was not shared across login sessions');
 
   const wrongPasswordRes = await fetch(`${base}/api/auth/login`, {
     method: 'POST',
@@ -284,7 +317,12 @@ async function runE2ETest() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       nickname: 'Duplicate',
+      fullName: 'Duplicate Example',
       phoneOrEmail: contact,
+      email: 'duplicate@example.test',
+      dateOfBirth: '1995-06-15',
+      currentAddress: 'กรุงเทพมหานคร',
+      profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
       password: 'test-password-123',
       province: 'bangkok',
       amphoe: 'samphanthawong',

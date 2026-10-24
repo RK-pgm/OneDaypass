@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PROVINCES, REGIONS, getAmphoes, detectLocationFromGPS } from '../data/locations';
+import {
+  PROVINCES,
+  REGIONS,
+  detectLocationFromGPS,
+  findAdministrativeDistrict,
+  findAdministrativeSubdistrict,
+  getAdministrativeDistricts,
+  getAdministrativeSubdistricts,
+} from '../data/locations';
 import { addPoints, getDeviceId, loginAccount, registerAccount } from '../api';
+import { encodeProfilePhoto } from '../utils/profilePhoto';
 
 function getSavedAccounts() {
   try {
@@ -22,16 +31,27 @@ function saveAccountToList(account) {
   } catch {}
 }
 
+const defaultDistrict = findAdministrativeDistrict('bangkok', 'samphanthawong')
+  || getAdministrativeDistricts('bangkok')[0];
+const defaultTambon = findAdministrativeSubdistrict('bangkok', defaultDistrict?.id, 'ตลาดน้อย')
+  || getAdministrativeSubdistricts('bangkok', defaultDistrict?.id)[0];
+const todayDate = new Date().toISOString().slice(0, 10);
+
 export default function AuthGatePage({ onAuthenticated }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('register'); // 'register' | 'login'
 
   // Register form states
   const [nickname, setNickname] = useState('');
+  const [fullName, setFullName] = useState('');
   const [phoneOrEmail, setPhoneOrEmail] = useState('');
+  const [email, setEmail] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState('');
   const [province, setProvince] = useState('bangkok');
-  const [amphoe, setAmphoe] = useState('samphanthawong');
-  const [tambon, setTambon] = useState('ตลาดน้อย');
+  const [amphoe, setAmphoe] = useState(defaultDistrict?.id || '');
+  const [tambon, setTambon] = useState(defaultTambon?.id || '');
   const [registerPassword, setRegisterPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -53,7 +73,8 @@ export default function AuthGatePage({ onAuthenticated }) {
   const [gpsStatus, setGpsStatus] = useState('');
   const [detectedCoords, setDetectedCoords] = useState(null);
 
-  const amphoeList = getAmphoes(province);
+  const amphoeList = getAdministrativeDistricts(province);
+  const tambonList = getAdministrativeSubdistricts(province, amphoe);
 
   // Load saved accounts on mount
   useEffect(() => {
@@ -66,14 +87,23 @@ export default function AuthGatePage({ onAuthenticated }) {
         const legacy = { ...existingAuth, ...existingProfile };
         if (legacy.nickname || legacy.phoneOrEmail) {
           setNickname(legacy.nickname || '');
+          setFullName(legacy.fullName || '');
           setPhoneOrEmail(legacy.phoneOrEmail || '');
+          setEmail(legacy.email || '');
+          setDateOfBirth(legacy.dateOfBirth || '');
+          setCurrentAddress(legacy.currentAddress || '');
+          setProfilePhoto(legacy.profilePhoto || '');
           const savedProvince = PROVINCES.some((item) => item.id === legacy.province)
             ? legacy.province
             : 'bangkok';
           setProvince(savedProvince);
           const savedAmphoe = legacy.amphoe || legacy.district;
-          if (getAmphoes(savedProvince).some((item) => item.id === savedAmphoe)) setAmphoe(savedAmphoe);
-          setTambon(legacy.tambon || 'ตลาดน้อย');
+          const matchedAmphoe = findAdministrativeDistrict(savedProvince, savedAmphoe)
+            || getAdministrativeDistricts(savedProvince)[0];
+          setAmphoe(matchedAmphoe?.id || '');
+          const matchedTambon = findAdministrativeSubdistrict(savedProvince, matchedAmphoe?.id, legacy.tambon)
+            || getAdministrativeSubdistricts(savedProvince, matchedAmphoe?.id)[0];
+          setTambon(matchedTambon?.id || '');
           setLegacyProfileAvailable(true);
         }
       }
@@ -85,11 +115,32 @@ export default function AuthGatePage({ onAuthenticated }) {
   function handleProvinceChange(e) {
     const newProv = e.target.value;
     setProvince(newProv);
-    const newAmphoes = getAmphoes(newProv);
+    const newAmphoes = getAdministrativeDistricts(newProv);
     if (newAmphoes.length > 0) {
       setAmphoe(newAmphoes[0].id);
+      setTambon(getAdministrativeSubdistricts(newProv, newAmphoes[0].id)[0]?.id || '');
     } else {
       setAmphoe('');
+      setTambon('');
+    }
+  }
+
+  function handleAmphoeChange(e) {
+    const newAmphoe = e.target.value;
+    setAmphoe(newAmphoe);
+    setTambon(getAdministrativeSubdistricts(province, newAmphoe)[0]?.id || '');
+  }
+
+  async function handleProfilePhotoChange(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError('');
+    try {
+      setProfilePhoto(await encodeProfilePhoto(file));
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถใช้รูปนี้ได้ กรุณาเลือกรูปใหม่');
+    } finally {
+      e.target.value = '';
     }
   }
 
@@ -119,19 +170,22 @@ export default function AuthGatePage({ onAuthenticated }) {
   async function handleDetectGPS() {
     setGpsLoading(true);
     setError('');
-    setGpsStatus('กำลังค้นหาพิกัดดาวเทียม GPS...');
+    setGpsStatus('กำลังระบุตำแหน่งปัจจุบัน...');
     try {
       const detected = await detectLocationFromGPS();
       setProvince(detected.province);
-      const newAmphoes = getAmphoes(detected.province);
-      const matchedAmp = newAmphoes.find((a) => a.id === detected.amphoe);
-      setAmphoe(matchedAmp ? matchedAmp.id : newAmphoes[0]?.id || '');
-      setTambon(detected.tambon || 'ในเมือง');
+      const newAmphoes = getAdministrativeDistricts(detected.province);
+      const matchedAmp = findAdministrativeDistrict(detected.province, detected.amphoeName)
+        || newAmphoes[0];
+      setAmphoe(matchedAmp?.id || '');
+      const matchedTambon = findAdministrativeSubdistrict(detected.province, matchedAmp?.id, detected.tambon)
+        || getAdministrativeSubdistricts(detected.province, matchedAmp?.id)[0];
+      setTambon(matchedTambon?.id || '');
       setDetectedCoords({ lat: detected.lat, lng: detected.lng, accuracy: detected.accuracy });
       setGpsStatus(`✓ ปักหมุดพิกัดสำเร็จ: ${detected.provinceName} (±${detected.accuracy}ม.)`);
       setTimeout(() => setGpsStatus(''), 4000);
     } catch (err) {
-      setError(err.message || 'ไม่สามารถดึงตำแหน่ง GPS ได้');
+      setError(err.message || 'ไม่สามารถระบุตำแหน่งปัจจุบันได้');
       setGpsStatus('');
     } finally {
       setGpsLoading(false);
@@ -150,6 +204,10 @@ export default function AuthGatePage({ onAuthenticated }) {
       setError('กรุณากรอกเบอร์โทรศัพท์หรืออีเมล');
       return;
     }
+    if (!fullName.trim() || !email.trim() || !dateOfBirth || !currentAddress.trim() || !profilePhoto) {
+      setError('กรุณากรอกข้อมูลโปรไฟล์และเพิ่มรูปภาพให้ครบก่อนลงทะเบียน');
+      return;
+    }
     if (registerPassword.length < 8) {
       setError('รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร');
       return;
@@ -163,26 +221,36 @@ export default function AuthGatePage({ onAuthenticated }) {
     try {
       const selectedProvince = PROVINCES.find((p) => p.id === province);
       const selectedAmphoe = amphoeList.find((a) => a.id === amphoe);
+      const selectedTambon = tambonList.find((item) => item.id === tambon);
 
       const accountData = {
         nickname: nickname.trim(),
+        fullName: fullName.trim(),
         phoneOrEmail: phoneOrEmail.trim(),
+        email: email.trim(),
+        dateOfBirth,
+        currentAddress: currentAddress.trim(),
+        profilePhoto,
         password: registerPassword,
         province,
         provinceName: selectedProvince ? selectedProvince.name : province,
         provinceEmoji: selectedProvince ? selectedProvince.emoji : '🏙️',
         amphoe,
         amphoeName: selectedAmphoe ? selectedAmphoe.name : amphoe,
-        tambon: tambon.trim() || 'ในเมือง',
+        tambon: selectedTambon?.name || '',
         lat: detectedCoords?.lat || selectedProvince?.lat || 13.7563,
         lng: detectedCoords?.lng || selectedProvince?.lng || 100.5018,
-        registeredAt: new Date().toISOString(),
       };
 
       const { account: authData } = await registerAccount(accountData, getDeviceId());
       const userProfile = {
         nickname: authData.nickname,
+        fullName: authData.fullName,
         phoneOrEmail: authData.phoneOrEmail,
+        email: authData.email,
+        dateOfBirth: authData.dateOfBirth,
+        currentAddress: authData.currentAddress,
+        profilePhoto: authData.profilePhoto,
         province: authData.province,
         district: authData.amphoe,
         tambon: authData.tambon,
@@ -216,7 +284,12 @@ export default function AuthGatePage({ onAuthenticated }) {
       const { account: authData } = await loginAccount(loginPhoneOrEmail.trim(), loginPassword, getDeviceId());
       const userProfile = {
         nickname: authData.nickname,
+        fullName: authData.fullName,
         phoneOrEmail: authData.phoneOrEmail,
+        email: authData.email,
+        dateOfBirth: authData.dateOfBirth,
+        currentAddress: authData.currentAddress,
+        profilePhoto: authData.profilePhoto,
         province: authData.province,
         district: authData.amphoe,
         tambon: authData.tambon,
@@ -324,7 +397,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                 <div>
                   <div className="text-xs font-black text-brand-600 uppercase tracking-wide">น้องพาส • ไกด์ประจำตัว</div>
                   <p className="text-xs text-slate-700 font-medium leading-relaxed mt-0.5">
-                    "สวัสดีครับ! ก่อนเริ่มจัดทริป กรอกข้อมูลสั้นๆ หรือแตะ <strong>ระบุด้วย GPS</strong> ได้เลย รับฟรี <strong>50 แต้มต้อนรับ</strong> ทันทีค้าบ!"
+                    "สวัสดีครับ! ก่อนเริ่มจัดทริป กรอกข้อมูลสั้นๆ หรือแตะ <strong>ใช้ตำแหน่งปัจจุบัน</strong> ได้เลย รับฟรี <strong>50 แต้มต้อนรับ</strong> ทันทีค้าบ!"
                   </p>
                 </div>
               </div>
@@ -365,7 +438,7 @@ export default function AuthGatePage({ onAuthenticated }) {
             </div>
             <div className="flex items-center gap-2">
               <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center text-[10px] flex-shrink-0 font-bold">✓</span>
-              <span>ระบบ GPS ตรวจจับตำแหน่งและแนะนำย่านใกล้ตัวแบบเรียลไทม์</span>
+              <span>ระบบระบุตำแหน่งปัจจุบันและแนะนำย่านใกล้ตัวแบบเรียลไทม์</span>
             </div>
           </div>
         </div>
@@ -476,6 +549,95 @@ export default function AuthGatePage({ onAuthenticated }) {
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">ข้อมูลโปรไฟล์</h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">กรอกข้อมูลให้ครบเพื่อใช้เชื่อมบัญชีของคุณระหว่างอุปกรณ์</p>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="input-register-full-name" className="text-xs font-bold text-slate-700 mb-1 block">
+                        ชื่อ-นามสกุล <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        id="input-register-full-name"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        maxLength={120}
+                        value={fullName}
+                        onChange={(e) => setFullName(e.target.value)}
+                        placeholder="ชื่อและนามสกุล"
+                        className="input-field py-2.5 text-xs sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="input-register-email" className="text-xs font-bold text-slate-700 mb-1 block">
+                        อีเมล <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        id="input-register-email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        maxLength={254}
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@example.com"
+                        className="input-field py-2.5 text-xs sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="input-register-date-of-birth" className="text-xs font-bold text-slate-700 mb-1 block">
+                        วันเดือนปีเกิด <span className="text-rose-500">*</span>
+                      </label>
+                      <input
+                        id="input-register-date-of-birth"
+                        type="date"
+                        required
+                        max={todayDate}
+                        value={dateOfBirth}
+                        onChange={(e) => setDateOfBirth(e.target.value)}
+                        className="input-field py-2.5 text-xs sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="input-register-profile-photo" className="text-xs font-bold text-slate-700 mb-1 block">
+                        รูปโปรไฟล์ <span className="text-rose-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full overflow-hidden bg-white border border-slate-200 flex items-center justify-center text-xl shrink-0">
+                          {profilePhoto ? <img src={profilePhoto} alt="ตัวอย่างรูปโปรไฟล์" className="w-full h-full object-cover" /> : '👤'}
+                        </div>
+                        <input
+                          id="input-register-profile-photo"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          required={!profilePhoto}
+                          onChange={handleProfilePhotoChange}
+                          className="block min-w-0 w-full text-[11px] text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-[11px] file:font-bold file:text-brand-700"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1">เลือก JPG, PNG หรือ WebP; ระบบย่อรูปก่อนบันทึก</p>
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="input-register-current-address" className="text-xs font-bold text-slate-700 mb-1 block">
+                      ที่อยู่ปัจจุบัน <span className="text-rose-500">*</span>
+                    </label>
+                    <textarea
+                      id="input-register-current-address"
+                      required
+                      maxLength={300}
+                      rows={2}
+                      value={currentAddress}
+                      onChange={(e) => setCurrentAddress(e.target.value)}
+                      placeholder="บ้านเลขที่ ถนน แขวง/ตำบล เขต/อำเภอ จังหวัด"
+                      className="input-field py-2.5 text-xs sm:text-sm resize-y"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-xs font-bold text-slate-700 mb-1 block">
                     🔒 รหัสผ่าน <span className="text-rose-500">*</span>
@@ -532,18 +694,18 @@ export default function AuthGatePage({ onAuthenticated }) {
                       {gpsLoading ? (
                         <>
                           <span className="inline-block animate-spin text-xs">⟳</span>
-                          <span>กำลังจับสัญญาณ GPS...</span>
+                          <span>กำลังระบุตำแหน่ง...</span>
                         </>
                       ) : (
                         <>
                           <span>🛰️</span>
-                          <span>ดึงพิกัดจาก GPS อัตโนมัติ</span>
+                          <span>ใช้ตำแหน่งปัจจุบัน</span>
                         </>
                       )}
                     </button>
                   </div>
 
-                  {/* GPS Status feedback */}
+                  {/* Location status feedback */}
                   {gpsStatus && (
                     <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold flex items-center gap-1.5 animate-fade-in">
                       <span>✓</span>
@@ -594,7 +756,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                         <select
                           id="select-register-amphoe"
                           value={amphoe}
-                          onChange={(e) => setAmphoe(e.target.value)}
+                          onChange={handleAmphoeChange}
                           className="input-field py-2.5 text-xs sm:text-sm font-semibold w-full"
                         >
                           {amphoeList.map((a) => (
@@ -610,14 +772,17 @@ export default function AuthGatePage({ onAuthenticated }) {
                         <label className="text-[11px] font-bold text-slate-600 mb-1 block">
                           ตำบล / แขวง
                         </label>
-                        <input
-                          id="input-register-tambon"
-                          type="text"
+                        <select
+                          id="select-register-tambon"
+                          required
                           value={tambon}
                           onChange={(e) => setTambon(e.target.value)}
-                          placeholder="เช่น ตลาดน้อย, สุเทพ, บางแสน"
                           className="input-field py-2.5 text-xs sm:text-sm w-full"
-                        />
+                        >
+                          {tambonList.map((item) => (
+                            <option key={item.id} value={item.id}>{item.name}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -659,7 +824,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                   className="btn-primary w-full py-3.5 text-base font-black shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-[0.98]"
                 >
                   {submitting ? (
-                    <span>⟳ กำลังเข้าสู่ระบบ...</span>
+                    <span>⟳ กำลังสร้างบัญชี...</span>
                   ) : (
                     <>
                       <span>🎉 ลงทะเบียน & เริ่มต้นออกเดินทาง</span>
