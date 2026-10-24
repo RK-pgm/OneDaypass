@@ -4,7 +4,6 @@ const fs = require('node:fs');
 const express = require('express');
 const cors = require('cors');
 const db = require('./db');
-const createStubRouter = require('./routes/stub');
 const { uploadsDir } = require('./lib/storagePaths');
 
 const app = express();
@@ -25,25 +24,18 @@ app.get('/api/health', (_req, res) => {
 });
 
 const mounts = [
-  ['/api/auth', './routes/auth', 'บัญชีผู้ใช้'],
-  ['/api/shops', './routes/shops', 'ร้านค้า'],
-  ['/api/orders', './routes/orders', 'คำสั่งซื้อ'],
-  ['/api/passes', './routes/passes', 'พาส'],
-  ['/api/coupons', './routes/coupons', 'คูปอง'],
-  ['/api/checkin', './routes/checkin', 'เช็กอิน'],
-  ['/api/plans', './routes/plans', 'แผนเที่ยว'],
-  ['/api/missions', './routes/missions', 'มิชชั่น'],
-  ['/api/points', './routes/points', 'แต้ม']
+  ['/api/auth', require('./routes/auth')],
+  ['/api/shops', require('./routes/shops')],
+  ['/api/orders', require('./routes/orders')],
+  ['/api/passes', require('./routes/passes')],
+  ['/api/coupons', require('./routes/coupons')],
+  ['/api/checkin', require('./routes/checkin')],
+  ['/api/plans', require('./routes/plans')],
+  ['/api/missions', require('./routes/missions')],
+  ['/api/points', require('./routes/points')]
 ];
 
-for (const [mountPath, modulePath, label] of mounts) {
-  let router;
-  try {
-    router = require(modulePath);
-  } catch (error) {
-    if (error.code !== 'MODULE_NOT_FOUND' || !error.message.includes(modulePath)) throw error;
-    router = createStubRouter(label);
-  }
+for (const [mountPath, router] of mounts) {
   app.use(mountPath, router);
 }
 
