@@ -1,8 +1,6 @@
-const fs = require('node:fs');
-const path = require('node:path');
 const db = require('./db');
 
-const filePath = path.resolve(__dirname, '..', 'seed', 'shops.json');
+const shops = require('../seed/shops.json');
 const allowedCategories = new Set(['cafe', 'food', 'dessert', 'photo', 'activity']);
 
 function validateShop(shop, index) {
@@ -21,8 +19,7 @@ function validateShop(shop, index) {
   if (shop.mission !== null && (!shop.mission || typeof shop.mission.title !== 'string' || !Number.isInteger(shop.mission.points))) throw new Error(`${prefix}.mission ต้องมี title และ points หรือ null`);
 }
 
-function main() {
-  const shops = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+function seedShops() {
   if (!Array.isArray(shops)) throw new Error('ไฟล์ shops.json ต้องเป็น array');
   shops.forEach(validateShop);
 
@@ -51,14 +48,18 @@ function main() {
     }
   });
   seed(shops);
-  console.log(`Seeded ${shops.length} shops from ${filePath}`);
+  console.log(`Seeded ${shops.length} shops`);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`Seed failed: ${error.message}`);
-  process.exitCode = 1;
-} finally {
-  db.close();
+if (require.main === module) {
+  try {
+    seedShops();
+  } catch (error) {
+    console.error(`Seed failed: ${error.message}`);
+    process.exitCode = 1;
+  } finally {
+    db.close();
+  }
 }
+
+module.exports = seedShops;
