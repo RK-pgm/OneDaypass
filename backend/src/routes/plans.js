@@ -17,7 +17,10 @@ function createDemoDestinationShops({ districtId, districtName, startLat, startL
     !Number.isFinite(startLng) || startLng < -180 || startLng > 180
   ) return null;
 
-  const key = crypto.createHash('sha256').update(districtId).digest('hex').slice(0, 16);
+  const key = crypto.createHash('sha256')
+    .update(`${districtId}:${startLat}:${startLng}:${budget}`)
+    .digest('hex')
+    .slice(0, 16);
   const rows = DEMO_SHOP_CATEGORIES.map((category, index) => {
     const id = `demo_${key}_${index + 1}`;
     const name = `จุดตัวอย่าง ${index + 1} · ${districtName.trim()}`;
@@ -26,8 +29,8 @@ function createDemoDestinationShops({ districtId, districtName, startLat, startL
       name,
       district: districtName.trim(),
       category,
-      lat: startLat + (index % 2 === 0 ? 1 : -1) * 0.0008 * (index + 1),
-      lng: startLng + (index % 3 === 0 ? -1 : 1) * 0.0007 * (index + 1),
+      lat: startLat + (index % 2 === 0 ? 1 : -1) * 0.0002 * (index + 1),
+      lng: startLng + (index % 3 === 0 ? -1 : 1) * 0.0002 * (index + 1),
       avgPrice: Math.floor(budget * [0.2, 0.25, 0, 0.1, 0.1, 0.15][index]),
       tagsJson: JSON.stringify(['chill', 'challenge']),
       recommendedMenu: 'จุดแวะตัวอย่างสำหรับจัดเส้นทางเดโม',
@@ -43,19 +46,18 @@ function createDemoDestinationShops({ districtId, districtName, startLat, startL
   const insertDemoShop = db.prepare(`
     INSERT INTO shops
       (id, name, district, category, lat, lng, avgPrice, tagsJson, recommendedMenu,
-       couponJson, openFrom, openTo, durationMin, missionJson)
+       couponJson, openFrom, openTo, durationMin, missionJson, isDemo)
     VALUES
       (@id, @name, @district, @category, @lat, @lng, @avgPrice, @tagsJson, @recommendedMenu,
-       @couponJson, @openFrom, @openTo, @durationMin, @missionJson)
+       @couponJson, @openFrom, @openTo, @durationMin, @missionJson, 1)
     ON CONFLICT(id) DO UPDATE SET
       name=excluded.name, district=excluded.district, category=excluded.category,
       lat=excluded.lat, lng=excluded.lng, avgPrice=excluded.avgPrice,
       tagsJson=excluded.tagsJson, recommendedMenu=excluded.recommendedMenu,
-      openFrom=excluded.openFrom, openTo=excluded.openTo
+      openFrom=excluded.openFrom, openTo=excluded.openTo, isDemo=1
   `);
-  const saveDemoShops = db.transaction((shops) => shops.forEach((shop) => insertDemoShop.run(shop)));
-  saveDemoShops(rows);
-  return rows;
+  db.transaction((shops) => shops.forEach((shop) => insertDemoShop.run(shop)))(rows);
+  return rows.map((row) => ({ ...row, isDemo: 1 }));
 }
 
 const serializeShop = (row) => ({
@@ -94,32 +96,14 @@ router.post('/generate', (req, res) => {
       return res.status(400).json({ error: 'สไตล์การท่องเที่ยวไม่ถูกต้อง' });
     }
 
-    let rows = districtId && DISTRICTS[districtId]
-      ? db.prepare('SELECT * FROM shops WHERE district = ?').all(DISTRICTS[districtId])
-      : db.prepare('SELECT * FROM shops').all();
-    let demoGenerated = false;
-    if (
-      districtId &&
-      (!DISTRICTS[districtId] || rows.length === 0) &&
-      process.env.NODE_ENV !== 'production' &&
-      process.env.DEMO_MODE === 'true'
-    ) {
-      rows = createDemoDestinationShops({
-        districtId,
-        districtName,
-        startLat,
-        startLng,
-        budget: numBudget,
-      }) || [];
-      demoGenerated = rows.length > 0;
-    }
-    if (districtId && !DISTRICTS[districtId] && !demoGenerated) {
-      return res.status(404).json({ error: 'ย่านนี้ยังไม่มีข้อมูลร้านค้าจริง และปิดการสร้างข้อมูลตัวอย่างไว้' });
-    }
+    const rows = districtId
+      ? DISTRICTS[districtId]
+        ? db.prepare('SELECT * FROM shops WHERE district = ? AND isDemo = 0').all(DISTRICTS[districtId])
+        : []
+      : db.prepare('SELECT * FROM shops WHERE isDemo = 0').all();
 
     const shops = rows.map(serializeShop);
-
-    const result = generatePlan(shops, {
+    const planOptions = {
       budget: numBudget,
       style: CHALLENGE_STYLES.has(style) ? 'challenge' : 'chill',
       radiusKm: Number(radiusKm) || 3,
@@ -128,7 +112,20 @@ router.post('/generate', (req, res) => {
       people: Number(people) || 1,
       startTime: startTime || '10:00',
       districtName: districtId ? (DISTRICTS[districtId] || districtName) : undefined
-    });
+    };
+    let result = generatePlan(shops, planOptions);
+    let demoGenerated = false;
+    if (districtId && result.plan?.items.length < 3) {
+      const demoShops = createDemoDestinationShops({
+        districtId,
+        districtName: districtName || DISTRICTS[districtId] || 'ย่านที่เลือก',
+        startLat: planOptions.startLat,
+        startLng: planOptions.startLng,
+        budget: numBudget,
+      }) || [];
+      result = generatePlan(demoShops.map(serializeShop), planOptions);
+      demoGenerated = result.plan?.items.length > 0;
+    }
 
     if (!result.plan || result.plan.items.length === 0) {
       return res.status(404).json({ error: result.warning || 'ไม่พบสถานที่ท่องเที่ยวในเงื่อนไขที่กำหนด' });
@@ -138,7 +135,7 @@ router.post('/generate', (req, res) => {
     result.plan.style = style || 'chill';
     if (demoGenerated) {
       result.plan.demoGenerated = true;
-      result.plan.title = `แผนตัวอย่างเดโม · ${districtName.trim()}`;
+      result.plan.title = `แผนตัวอย่างเดโม · ${districtName || DISTRICTS[districtId] || 'ย่านที่เลือก'}`;
     }
     if (typeof districtName === 'string' && districtName.length <= 120) {
       result.plan.districtName = districtName;
@@ -152,7 +149,7 @@ router.post('/generate', (req, res) => {
     return res.json({
       plan: result.plan,
       warning: demoGenerated
-        ? 'ย่านนี้ยังไม่มีข้อมูลร้านค้าจริง จึงจัดแผนจากจุดตัวอย่างที่ไม่มีสิทธิประโยชน์จริง'
+        ? 'ย่านนี้มีข้อมูลร้านจริงไม่เพียงพอสำหรับจัดแผน จึงใช้จุดตัวอย่างที่ไม่มีคูปองหรือสิทธิประโยชน์จริง โปรดตรวจสอบสถานที่ก่อนเดินทาง'
         : result.warning
     });
   } catch (error) {

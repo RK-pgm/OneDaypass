@@ -27,6 +27,26 @@ async function runE2ETest() {
   assert(p.plan && p.plan.items.length >= 3 && p.plan.style === 'cafe', 'Plan generation failed for selected style');
   console.log(`✅ 3. Plan generated: "${p.plan.title}" (${p.plan.items.length} stops)`);
 
+  const seededDistricts = [
+    { districtId: 'taladnoi', districtName: 'ตลาดน้อย', startLat: 13.7313, startLng: 100.5105 },
+    { districtId: 'ari', districtName: 'อารีย์', startLat: 13.7797, startLng: 100.5447 },
+    { districtId: 'banthatthong', districtName: 'บรรทัดทอง', startLat: 13.7425, startLng: 100.5235 },
+    { districtId: 'phranakorn', districtName: 'พระนคร', startLat: 13.7525, startLng: 100.5015 },
+  ];
+  for (const district of seededDistricts) {
+    const districtResponse = await fetch(`${base}/api/plans/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...district, budget: 350, style: 'cafe', radiusKm: 2, startTime: '10:00' }),
+    });
+    const districtResult = await districtResponse.json();
+    assert(
+      districtResponse.ok && districtResult.plan?.items.length >= 3,
+      `Plan generation failed for ${district.districtName}`
+    );
+  }
+  console.log('✅ 3a. All 4 seeded districts generated itineraries');
+
   // 4. Create Order
   const deviceId = `dev-test-${Date.now()}`;
   const oRes = await fetch(`${base}/api/orders`, {
@@ -92,10 +112,34 @@ async function runE2ETest() {
   });
   const demoPlanResult = await demoPlanRes.json();
   assert(demoPlanRes.ok && demoPlanResult.plan?.demoGenerated, 'Unmapped destination demo plan was not generated');
-  assert(demoPlanResult.warning?.includes('ไม่มีสิทธิประโยชน์จริง'), 'Demo itinerary warning did not explain its limitations');
+  assert(demoPlanResult.warning?.includes('ไม่มีคูปองหรือสิทธิประโยชน์จริง'), 'Demo itinerary warning did not explain its limitations');
   assert(demoPlanResult.plan.items.length >= 3, 'Demo destination plan has too few stops');
   assert(demoPlanResult.plan.items.every((item) => item.shopName.includes('จุดตัวอย่าง')), 'Demo itinerary included unverified venue names');
   assert(demoPlanResult.plan.items.every((item) => !item.coupon), 'Demo itinerary advertised real coupons');
+
+  const customPlanRes = await fetch(`${base}/api/plans/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      districtId: 'custom_test',
+      districtName: 'ย่านทดลอง',
+      provinceId: 'chiangmai',
+      provinceName: 'เชียงใหม่',
+      budget: 350,
+      style: 'cafe',
+      radiusKm: 0.5,
+      startLat: 18.7883,
+      startLng: 98.9853,
+      startTime: '10:00',
+    }),
+  });
+  const customPlan = await customPlanRes.json();
+  assert(customPlanRes.ok && customPlan.plan?.items.length >= 3, 'Custom destination did not generate a plan');
+  assert(customPlan.plan.demoGenerated, 'Custom destination was not clearly labeled as a demo plan');
+  assert(customPlan.plan.items.every((item) => !item.coupon), 'Custom destination demo advertised real coupons');
+  const shopsAfterDemo = await (await fetch(`${base}/api/shops`)).json();
+  assert((shopsAfterDemo.shops || shopsAfterDemo).length === shops.length, 'Demo stops were persisted as real shops');
+  console.log('✅ 3b. Unmapped and custom destinations generated labeled demo plans without exposing demo stops as real shops');
 
   const demoOrderRes = await fetch(`${base}/api/orders`, {
     method: 'POST',
