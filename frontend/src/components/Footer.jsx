@@ -43,7 +43,7 @@ export default function Footer() {
             </p>
             {/* Social / contact chips */}
             <div className="flex flex-wrap gap-2">
-              {['PromptPay', 'ทุกธนาคาร', 'ไม่ต้องแอป'].map((tag) => (
+              {['โหมดตัวอย่าง', 'ไม่รับเงินจริง', 'พาสจำลอง'].map((tag) => (
                 <span
                   key={tag}
                   className="text-[11px] font-semibold px-2.5 py-1 rounded-full"

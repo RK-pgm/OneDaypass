@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
 
   const rows = db.prepare(`
     SELECT p.id, p.code, p.status, p.validDate, p.createdAt AS passCreatedAt,
-      o.id AS orderId, o.planJson, o.people, o.amount, o.discount, o.pointsUsed,
+      o.id AS orderId, o.planJson, o.people, o.amount, o.discount, o.pointsUsed, o.isDemo,
       o.createdAt AS orderCreatedAt
     FROM passes p
     JOIN orders o ON o.id = p.orderId
@@ -42,6 +42,7 @@ router.get('/', (req, res) => {
       totalAmount: row.amount,
       discount: row.discount,
       pointsUsed: row.pointsUsed,
+      isDemo: Boolean(row.isDemo),
       pointsEarned: Math.max(10, Math.round(row.amount * 0.05)),
       placesCount: plan.items?.length || 0,
       couponsCount: coupons.length,
@@ -55,7 +56,7 @@ router.get('/', (req, res) => {
 
 router.get('/:passId', (req, res) => {
   const pass = db.prepare(`SELECT p.*, o.id AS orderId, o.planJson, o.people,
-    o.amount, o.discount, o.pointsUsed, o.createdAt AS orderCreatedAt
+    o.amount, o.discount, o.pointsUsed, o.isDemo, o.createdAt AS orderCreatedAt
     FROM passes p
     JOIN orders o ON o.id = p.orderId WHERE p.id = ?`).get(req.params.passId);
   if (!pass) return res.status(404).json({ error: 'ไม่พบพาสนี้' });
@@ -69,7 +70,7 @@ router.get('/:passId', (req, res) => {
     )`).all(pass.id).map((row) => row.missionId);
   const completedMissionIds = db.prepare('SELECT missionId FROM mission_submissions WHERE passId = ?').all(pass.id)
     .map((row) => row.missionId);
-  return res.json({ id: pass.id, code: pass.code, status: pass.status, validDate: pass.validDate,
+  return res.json({ id: pass.id, code: pass.code, status: pass.status, isDemo: Boolean(pass.isDemo), validDate: pass.validDate,
     people: pass.people, plan: JSON.parse(pass.planJson), coupons, checkins, unlockedMissionIds, completedMissionIds,
     purchase: {
       orderId: pass.orderId,

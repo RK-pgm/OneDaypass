@@ -408,7 +408,7 @@ export default function PlanResultPage() {
           {/* Quick Buy CTA button (desktop) */}
           <div className="hidden lg:flex items-center gap-3">
             <div className="text-right">
-              <span className="text-[11px] text-slate-500 font-semibold block">ราคารวม ({people} คน)</span>
+              <span className="text-[11px] text-slate-500 font-semibold block">ยอดตัวอย่าง ({people} คน)</span>
               <span className="text-2xl font-extrabold text-brand-600 font-mono">{totalCost.toLocaleString()} บาท</span>
             </div>
             <button
@@ -416,7 +416,7 @@ export default function PlanResultPage() {
               disabled={loading}
               className="btn-primary py-3 px-6 text-sm font-bold flex items-center gap-2 shadow-lg shadow-brand-500/20"
             >
-              {loading ? '⟳ กำลังดำเนินการ...' : '🎫 ซื้อพาสนี้เลย →'}
+              {loading ? '⟳ กำลังดำเนินการ...' : '🎫 ดูพาสตัวอย่าง →'}
             </button>
           </div>
         </div>
@@ -669,11 +669,14 @@ export default function PlanResultPage() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-slate-500 text-xs uppercase tracking-wider font-bold">ยอดรวมการสั่งซื้อ</span>
+                    <span className="text-slate-500 text-xs uppercase tracking-wider font-bold">ยอดตัวอย่าง (ไม่มีการเรียกเก็บเงินจริง)</span>
                     <span className="badge bg-brand-500 text-white text-[10px] font-bold">
                       {selectedPackage.title}
                     </span>
                   </div>
+                  <p className="mt-2 text-xs leading-relaxed text-amber-800">
+                    🧪 ต้นแบบสำหรับทดลองชมเท่านั้น ยอดเงิน คูปอง และแต้มเป็นตัวอย่าง ไม่มีการเรียกเก็บเงินจริง
+                  </p>
                   <div className="flex items-baseline gap-2 mt-1">
                     <span className="text-3xl sm:text-4xl font-extrabold text-brand-600 font-mono">
                       {totalCost.toLocaleString()}
@@ -697,7 +700,7 @@ export default function PlanResultPage() {
                     </>
                   ) : (
                     <>
-                      <span>🎫 ซื้อ {selectedPackage.title}</span>
+                      <span>🎫 ดูพาสตัวอย่าง {selectedPackage.title}</span>
                       <span>→</span>
                     </>
                   )}
@@ -720,7 +723,7 @@ export default function PlanResultPage() {
       {/* Mobile Sticky Bottom CTA */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 px-4 pb-6 pt-3 border-t border-slate-200 shadow-xl backdrop-blur-md">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-slate-600 font-medium">ยอดรวม ({people} คน):</span>
+          <span className="text-xs text-slate-600 font-medium">ยอดตัวอย่าง ({people} คน):</span>
           <span className="text-brand-600 font-extrabold font-mono text-base">{totalCost.toLocaleString()} บาท</span>
         </div>
         <button
@@ -728,7 +731,7 @@ export default function PlanResultPage() {
           disabled={loading}
           className="btn-primary py-3.5 text-base font-bold flex items-center justify-center gap-2"
         >
-          {loading ? '⟳ กำลังดำเนินการ...' : `🎫 ซื้อ ${selectedPackage.title} · ${totalCost.toLocaleString()} บาท`}
+          {loading ? '⟳ กำลังดำเนินการ...' : `🎫 ดูพาสตัวอย่าง · ${totalCost.toLocaleString()} บาท`}
         </button>
       </div>
     </div>
