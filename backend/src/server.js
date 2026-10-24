@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./db');
 const { uploadsDir } = require('./lib/storagePaths');
+const seedShops = require('./seed');
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -37,6 +38,10 @@ const mounts = [
 
 for (const [mountPath, router] of mounts) {
   app.use(mountPath, router);
+}
+
+if (!db.prepare('SELECT 1 FROM shops LIMIT 1').get()) {
+  seedShops();
 }
 
 app.use((err, _req, res, _next) => {
