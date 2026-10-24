@@ -84,7 +84,8 @@ function generatePlan(shops = [], options = {}) {
     startLat = 13.7335,
     startLng = 100.5126,
     people = 1,
-    startTime = '10:00'
+    startTime = '10:00',
+    districtName = 'ตลาดน้อย'
   } = options;
 
   const numBudget = Math.max(100, Number(budget) || 500);
@@ -104,7 +105,7 @@ function generatePlan(shops = [], options = {}) {
   if (shopsInRange.length === 0) {
     return {
       plan: {
-        title: `DayPass ตลาดน้อย (${style === 'challenge' ? 'สายลุย' : 'สายชิล'})`,
+        title: `DayPass ${districtName} (${style === 'challenge' ? 'สายลุย' : 'สายชิล'})`,
         style,
         totalCostPerPerson: 0,
         items: []
@@ -288,8 +289,8 @@ function generatePlan(shops = [], options = {}) {
 
   const title =
     style === 'challenge'
-      ? `DayPass ตลาดน้อย สายลุยล่าแต้ม & เช็กอินจุดลับ (${planItems.length} จุดเด็ด)`
-      : `DayPass ตลาดน้อย วันเดียวเที่ยวเพลินฉบับสโลว์ไลฟ์ (${planItems.length} จุดเช็กอิน)`;
+      ? `DayPass ${districtName} สายลุยล่าแต้ม & เช็กอินจุดลับ (${planItems.length} จุดเด็ด)`
+      : `DayPass ${districtName} วันเดียวเที่ยวเพลินฉบับสโลว์ไลฟ์ (${planItems.length} จุดเช็กอิน)`;
 
   let warning = null;
   if (planItems.length < blueprint.length) {

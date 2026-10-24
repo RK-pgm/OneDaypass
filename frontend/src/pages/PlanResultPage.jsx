@@ -37,9 +37,79 @@ const CATEGORY_ICON = {
   activity: '🎯 กิจกรรม',
 };
 
+function distanceKm(aLat, aLng, bLat, bLng) {
+  const radians = (degrees) => (degrees * Math.PI) / 180;
+  const dLat = radians(bLat - aLat);
+  const dLng = radians(bLng - aLng);
+  const value = Math.sin(dLat / 2) ** 2
+    + Math.cos(radians(aLat)) * Math.cos(radians(bLat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
+}
+
+function walkingMinutes(km) {
+  return km <= 0.05 ? 3 : Math.max(5, Math.round(km * 13));
+}
+
+function timeToMinutes(value) {
+  const [hours, minutes] = (value || '10:00').split(':').map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+function formatTime(value) {
+  const normalized = ((value % 1440) + 1440) % 1440;
+  return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
+}
+
+function readSharedTrip() {
+  const token = new URLSearchParams(window.location.search).get('share');
+  if (!token || token.length > 12000) return null;
+  try {
+    const base64 = token.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const bytes = Uint8Array.from(atob(paddedBase64), (char) => char.charCodeAt(0));
+    const shared = JSON.parse(new TextDecoder().decode(bytes));
+    if (!shared?.plan || !Array.isArray(shared.plan.items) || shared.plan.items.length < 1 || shared.plan.items.length > 12) return null;
+    const items = shared.plan.items.map((item, index) => {
+      if (typeof item?.shopId !== 'string' || !item.shopId || !Number.isFinite(item.lat) || !Number.isFinite(item.lng)
+        || item.lat < -90 || item.lat > 90 || item.lng < -180 || item.lng > 180) return null;
+      return {
+        ...item,
+        order: index + 1,
+        shopName: String(item.shopName || 'สถานที่ท่องเที่ยว'),
+        time: /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(item.time) ? item.time : '10:00',
+        durationMin: Number.isFinite(item.durationMin) ? Math.max(1, Math.min(480, item.durationMin)) : 45,
+        estCost: Number.isFinite(item.estCost) ? Math.max(0, item.estCost) : 0,
+      };
+    });
+    if (items.some((item) => !item)) return null;
+    const plan = {
+      ...shared.plan,
+      title: String(shared.plan.title || 'แผนเที่ยว DayPass'),
+      style: ['chill', 'challenge'].includes(shared.plan.style) ? shared.plan.style : 'chill',
+      totalCostPerPerson: Number.isFinite(shared.plan.totalCostPerPerson)
+        ? Math.max(0, shared.plan.totalCostPerPerson)
+        : items.reduce((sum, item) => sum + item.estCost, 0),
+      items,
+    };
+    const people = Number.isInteger(shared.people) && shared.people >= 1 && shared.people <= 10 ? shared.people : 1;
+    return { plan, people };
+  } catch {
+    return null;
+  }
+}
+
+function encodeSharePayload(value) {
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
 export default function PlanResultPage() {
   const navigate = useNavigate();
-  const [plan] = useState(() => {
+  const [sharedTrip] = useState(readSharedTrip);
+  const [plan, setPlan] = useState(() => {
+    if (sharedTrip?.plan) return sharedTrip.plan;
     try {
       const parsed = JSON.parse(sessionStorage.getItem('daypass_plan') || 'null');
       return parsed && Array.isArray(parsed.items) && parsed.items.length ? parsed : null;
@@ -48,10 +118,13 @@ export default function PlanResultPage() {
     }
   });
   const [people] = useState(() => {
+    if (sharedTrip?.people) return sharedTrip.people;
     const savedPeople = Number(sessionStorage.getItem('daypass_people'));
     return Number.isInteger(savedPeople) && savedPeople >= 1 && savedPeople <= 10 ? savedPeople : 2;
   });
   const [loading, setLoading] = useState(false);
+  const [optimizationMessage, setOptimizationMessage] = useState('');
+  const [shareMessage, setShareMessage] = useState('');
   const [error, setError] = useState('');
   const mapRef = useRef(null);
 
@@ -67,8 +140,107 @@ export default function PlanResultPage() {
 
   const polylinePositions = plan.items.map((item) => [item.lat, item.lng]);
 
-  const totalMinutes = plan.items.reduce((acc, curr) => acc + (curr.durationMin || 45), 0);
+  const totalMinutes = plan.items.reduce(
+    (acc, curr) => acc + (curr.durationMin || 45) + walkingMinutes(curr.distanceFromPrevKm || 0),
+    0
+  );
   const totalCost = plan.totalCostPerPerson * people;
+  const couponCount = plan.items.filter((item) => item.coupon).length;
+  const missionPoints = plan.items.reduce((sum, item) => sum + (item.mission?.points || 0), 0);
+
+  function optimizeItinerary() {
+    const request = JSON.parse(sessionStorage.getItem('daypass_plan_request') || '{}');
+    const origin = {
+      lat: Number.isFinite(Number(request.startLat)) ? Number(request.startLat) : plan.items[0].lat,
+      lng: Number.isFinite(Number(request.startLng)) ? Number(request.startLng) : plan.items[0].lng,
+    };
+    let route = plan.items.slice();
+    const routeDistance = (items) => {
+      let total = distanceKm(origin.lat, origin.lng, items[0].lat, items[0].lng);
+      for (let index = 1; index < items.length; index += 1) {
+        total += distanceKm(items[index - 1].lat, items[index - 1].lng, items[index].lat, items[index].lng);
+      }
+      return total;
+    };
+
+    // Apply 2-opt swaps until no reversal shortens the open walking route.
+    let improved = true;
+    while (improved) {
+      improved = false;
+      let bestDistance = routeDistance(route);
+      let bestRoute = route;
+      for (let start = 0; start < route.length - 1; start += 1) {
+        for (let end = start + 1; end < route.length; end += 1) {
+          const candidate = [
+            ...route.slice(0, start),
+            ...route.slice(start, end + 1).reverse(),
+            ...route.slice(end + 1),
+          ];
+          const candidateDistance = routeDistance(candidate);
+          if (candidateDistance < bestDistance - 0.001) {
+            bestDistance = candidateDistance;
+            bestRoute = candidate;
+          }
+        }
+      }
+      if (bestRoute !== route) {
+        route = bestRoute;
+        improved = true;
+      }
+    }
+
+    const originalDistance = routeDistance(plan.items);
+    const optimizedDistance = routeDistance(route);
+    if (originalDistance - optimizedDistance < 0.01) {
+      setOptimizationMessage('เส้นทางปัจจุบันเดินสั้นที่สุดแล้ว');
+      return;
+    }
+
+    let currentTime = timeToMinutes(request.startTime || '10:00');
+    let previous = origin;
+    const items = route.map((item, index) => {
+      const distance = distanceKm(previous.lat, previous.lng, item.lat, item.lng);
+      currentTime += walkingMinutes(distance);
+      const updated = {
+        ...item,
+        order: index + 1,
+        time: formatTime(currentTime),
+        distanceFromPrevKm: Number(distance.toFixed(2)),
+      };
+      currentTime += item.durationMin || 45;
+      previous = item;
+      return updated;
+    });
+
+    const updatedPlan = { ...plan, items };
+    setPlan(updatedPlan);
+    sessionStorage.setItem('daypass_plan', JSON.stringify(updatedPlan));
+    const savedKm = originalDistance - optimizedDistance;
+    setOptimizationMessage(`จัดเส้นทางใหม่แล้ว ลดระยะเดินประมาณ ${savedKm.toFixed(1)} กม. โดยคงสถานที่และงบเดิม`);
+  }
+
+  async function shareItinerary() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('share', encodeSharePayload({ plan, people }));
+    const shareData = {
+      title: 'แผนเที่ยว DayPass',
+      text: `${plan.items.length} จุด · รวม ${totalCost.toLocaleString()} บาท (${people} คน · เฉลี่ย ${Math.round(totalCost / people).toLocaleString()} บาท/คน)`,
+      url: url.toString(),
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        setShareMessage('แชร์แผนเที่ยวเรียบร้อยแล้ว');
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url.toString());
+        setShareMessage('คัดลอกลิงก์แผนเที่ยวแล้ว ส่งให้เพื่อนเปิดดูได้เลย');
+      } else {
+        setShareMessage('อุปกรณ์นี้ไม่รองรับการแชร์ลิงก์ กรุณาเปิดบนเบราว์เซอร์ที่รองรับ');
+      }
+    } catch (shareError) {
+      if (shareError.name !== 'AbortError') setShareMessage('แชร์ไม่สำเร็จ กรุณาลองอีกครั้ง');
+    }
+  }
 
   async function handleBuy() {
     setError('');
@@ -114,8 +286,25 @@ export default function PlanResultPage() {
                   {plan.style === 'chill' ? '☕ ชิลๆ สบายๆ' : '⚡ ตระเวนท้าทาย'}
                 </span>
               </div>
+              <button
+                type="button"
+                onClick={optimizeItinerary}
+                className="mt-2 inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-xs sm:text-sm font-bold text-brand-700 hover:bg-brand-100 transition-colors"
+              >
+                ✨ ปรับทริปให้คุ้มกว่าเดิม
+              </button>
+              <p className="mt-1 text-[11px] text-slate-500">เรียงจุดใหม่เพื่อลดระยะเดิน โดยคงสถานที่และงบเดิม</p>
+              {optimizationMessage && <p className="mt-1 text-xs font-medium text-emerald-700" role="status">{optimizationMessage}</p>}
+              <button
+                type="button"
+                onClick={shareItinerary}
+                className="mt-2 ml-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                🔗 แชร์แผนให้เพื่อน
+              </button>
+              {shareMessage && <p className="mt-1 text-xs font-medium text-slate-600" role="status">{shareMessage}</p>}
               <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-                {plan.items.length} จุดเช็กอิน · รวมระยะเวลาเดินทางประมาณ {Math.round(totalMinutes / 60)} ชม. · สำหรับ {people} คน
+                {plan.items.length} จุดเช็กอิน · ใช้เวลาตามแผนประมาณ {Math.floor(totalMinutes / 60)} ชม. {totalMinutes % 60} นาที (รวมเวลาเดิน) · สำหรับ {people} คน
               </p>
             </div>
           </div>
@@ -198,11 +387,11 @@ export default function PlanResultPage() {
               <div className="space-y-2 text-xs text-slate-600 font-medium">
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-600 font-bold">✓</span>
-                  <span>คูปองฟรีและส่วนลดร้านอาหาร 3 ร้าน (มูลค่ากว่า 250 บาท)</span>
+                  <span>คูปองจากร้านค้า {couponCount} รายการ</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-purple-600 font-bold">✓</span>
-                  <span>สิทธิ์ทำมิชชั่นถ่ายรูป สะสมแต้มสูงสุด +25 แต้ม (แลกส่วนลดทริปหน้า)</span>
+                  <span>มิชชั่นในแผนนี้สะสมได้สูงสุด +{missionPoints} แต้ม</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-brand-600 font-bold">✓</span>

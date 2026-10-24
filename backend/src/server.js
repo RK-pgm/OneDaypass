@@ -8,7 +8,7 @@ const createStubRouter = require('./routes/stub');
 const { uploadsDir } = require('./lib/storagePaths');
 
 const app = express();
-const port = Number(process.env.PORT || 3000);
+const port = Number(process.env.PORT || 5000);
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.use(cors());

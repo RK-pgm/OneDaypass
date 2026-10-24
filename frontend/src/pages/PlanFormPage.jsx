@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generatePlan, getDeviceId, DISTRICTS } from '../api';
+import { generatePlan, getDeviceId, DISTRICTS, USE_MOCK } from '../api';
 
 const BUDGET_OPTIONS = [
   { value: 199, label: '199', sub: 'ประหยัด', badge: 'คุ้มค่า' },
@@ -27,10 +27,11 @@ function getRadiusLabel(km) {
 
 export default function PlanFormPage() {
   const navigate = useNavigate();
+  const availableDistricts = USE_MOCK ? DISTRICTS : DISTRICTS.filter((district) => district.id === 'taladnoi');
 
   const [selectedDistrict, setSelectedDistrict] = useState(() => {
     const savedDistrictId = sessionStorage.getItem('daypass_selected_district');
-    return DISTRICTS.find((district) => district.id === savedDistrictId) || DISTRICTS[0];
+    return availableDistricts.find((district) => district.id === savedDistrictId) || availableDistricts[0];
   });
   const [budget, setBudget] = useState(() => {
     const savedBudget = Number(sessionStorage.getItem('daypass_preset_budget'));
@@ -74,7 +75,7 @@ export default function PlanFormPage() {
       const startLat = userCoords ? userCoords.lat : selectedDistrict.lat;
       const startLng = userCoords ? userCoords.lng : selectedDistrict.lng;
 
-      const result = await generatePlan({
+      const planRequest = {
         districtId: selectedDistrict.id,
         budget,
         style,
@@ -84,7 +85,9 @@ export default function PlanFormPage() {
         people,
         startTime,
         deviceId: getDeviceId(),
-      });
+      };
+      sessionStorage.setItem('daypass_plan_request', JSON.stringify(planRequest));
+      const result = await generatePlan(planRequest);
 
       sessionStorage.setItem('daypass_plan', JSON.stringify(result.plan));
       sessionStorage.setItem('daypass_people', String(people));
@@ -130,7 +133,7 @@ export default function PlanFormPage() {
                 <span>เลือกย่านที่อยากไป</span>
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {DISTRICTS.map((d) => (
+                {availableDistricts.map((d) => (
                   <button
                     key={d.id}
                     type="button"

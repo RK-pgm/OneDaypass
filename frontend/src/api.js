@@ -1,9 +1,9 @@
 // ============================================================
 //  api.js  — ชั้นเรียก API ทั้งหมด
-//  เปลี่ยน USE_MOCK = false เมื่อ backend พร้อม
+//  ใช้ mock เฉพาะตอนพัฒนาในเครื่อง; production เรียก backend จริงเป็นค่าเริ่มต้น
 // ============================================================
 
-export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? 'true').toLowerCase() !== 'false';
+export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? (import.meta.env.DEV ? 'true' : 'false')).toLowerCase() !== 'false';
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 // ── deviceId (แทน login) ────────────────────────────────────
@@ -547,6 +547,10 @@ export async function submitMission(missionId, formData) {
     const points = await getPoints(deviceId);
     const totalPoints = points.totalPoints + award;
     localStorage.setItem(`daypass_points_${deviceId}`, String(totalPoints));
+    const historyKey = `daypass_points_transactions_${deviceId}`;
+    const history = Array.isArray(points.transactions) ? points.transactions.slice() : [];
+    history.unshift({ delta: award, reason: `ทำมิชชั่น ${pass.plan.items.find((item) => item.mission?.id === missionId)?.mission?.title || missionId}`, at: new Date().toISOString() });
+    localStorage.setItem(historyKey, JSON.stringify(history.slice(0, 20)));
     return { ok: true, pointsAwarded: award, totalPoints };
   }
   const res = await fetch(`${BASE_URL}/missions/${missionId}/submit`, {
@@ -561,8 +565,25 @@ export async function submitMission(missionId, formData) {
 /** 9. GET /api/points */
 export async function getPoints(deviceId) {
   if (USE_MOCK) {
-    const saved = localStorage.getItem(`daypass_points_${deviceId}`);
-    return { ...MOCK_POINTS, totalPoints: saved === null ? MOCK_POINTS.totalPoints : Math.max(0, Number(saved) || 0) };
+    const balanceKey = `daypass_points_${deviceId}`;
+    const historyKey = `daypass_points_transactions_${deviceId}`;
+    let transactions = [];
+    try {
+      transactions = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      if (!Array.isArray(transactions)) transactions = [];
+    } catch {
+      transactions = [];
+    }
+    let saved = localStorage.getItem(balanceKey);
+    if (saved === null) {
+      saved = String(MOCK_POINTS.totalPoints);
+      localStorage.setItem(balanceKey, saved);
+      if (transactions.length === 0 && MOCK_POINTS.totalPoints > 0) {
+        transactions = [{ delta: MOCK_POINTS.totalPoints, reason: 'แต้มทดลองเริ่มต้น', at: new Date().toISOString() }];
+        localStorage.setItem(historyKey, JSON.stringify(transactions));
+      }
+    }
+    return { ...MOCK_POINTS, totalPoints: Math.max(0, Number(saved) || 0), transactions: transactions.slice(0, 20) };
   }
   return apiFetch(`/points?deviceId=${encodeURIComponent(deviceId)}`);
 }

@@ -21,11 +21,19 @@ router.get('/', (req, res) => {
     ).get(deviceId);
 
     const totalPoints = Math.max(0, row ? row.total : 0);
+    const transactions = db.prepare(`
+      SELECT delta, reason, at
+      FROM points_ledger
+      WHERE deviceId = ?
+      ORDER BY rowid DESC
+      LIMIT 20
+    `).all(deviceId);
 
     return res.json({
       totalPoints,
       points: totalPoints,
-      pointValueBaht: POINT_VALUE_BAHT
+      pointValueBaht: POINT_VALUE_BAHT,
+      transactions
     });
   } catch (error) {
     console.error('[Error GET /api/points]:', error);

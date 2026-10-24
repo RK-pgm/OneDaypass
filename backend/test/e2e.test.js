@@ -114,7 +114,8 @@ async function runE2ETest() {
   const ptsRes = await fetch(`${base}/api/points?deviceId=${deviceId}`);
   const pts = await ptsRes.json();
   assert(pts.points > 0, 'Points ledger failed to track earned points');
-  console.log(`✅ 10. Points balance updated: ${pts.points} points in wallet!`);
+  assert(Array.isArray(pts.transactions) && pts.transactions.some((entry) => entry.delta > 0), 'Points history failed to return earned points');
+  console.log(`✅ 10. Points balance and transaction history updated: ${pts.points} points, ${pts.transactions.length} recent entries`);
 
   console.log('\n🎉 ALL 10 DAYPASS ENDPOINTS VERIFIED & WORKING 100%!');
 }

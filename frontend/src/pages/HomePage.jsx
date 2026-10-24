@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DISTRICTS } from '../api';
+import { DISTRICTS, USE_MOCK } from '../api';
 
 export default function HomePage() {
   const navigate = useNavigate();
-  const [selectedPreviewDistrict, setSelectedPreviewDistrict] = useState(DISTRICTS[0]);
+  const availableDistricts = USE_MOCK ? DISTRICTS : DISTRICTS.filter((district) => district.id === 'taladnoi');
+  const [selectedPreviewDistrict, setSelectedPreviewDistrict] = useState(availableDistricts[0]);
   const [activeFaq, setActiveFaq] = useState(null);
 
   function handleStartPlan(districtId) {
@@ -21,11 +22,11 @@ export default function HomePage() {
     },
     {
       q: 'ได้รับอะไรบ้างเมื่อซื้อพาส 1 วัน?',
-      a: 'คุณจะได้รับ: (1) แผนที่และกำหนดการเดินทางเรียงตามเวลาจริง (2) คูปองอาหาร/เครื่องดื่มฟรีหรือส่วนลดจากร้านเด็ดในย่าน (3) สิทธิ์ทำมิชชั่นถ่ายรูปเพื่อสะสมแต้มแลกเป็นส่วนลดพาสถัดไป',
+      a: 'พาสแสดงกำหนดการและแผนที่ของสถานที่ที่เลือก คูปองจะแสดงตามร้านที่อยู่ในแผน และเช็กอินเพื่อปลดล็อกมิชชั่นสะสมแต้มได้',
     },
     {
       q: 'ชำระเงินอย่างไร มีความปลอดภัยไหม?',
-      a: 'ชำระเงินผ่าน PromptPay QR Code มาตรฐาน ได้ทุกธนาคารในไทย จ่ายเสร็จระบบจะออกพาสดิจิทัลให้ทันทีภายในไม่กี่วินาที',
+      a: 'โหมดสาธิตใช้ QR จำลองและไม่รับเงินจริง ส่วนการรับชำระเงินจริงต้องเชื่อมต่อระบบตรวจสอบการโอนก่อนจึงจะออกพาสได้',
     },
     {
       q: 'ถ้าไปเป็นกลุ่มหรือกับเพื่อน ซื้อร่วมกันได้ไหม?',
@@ -86,7 +87,7 @@ export default function HomePage() {
                   <span className="text-emerald-600 font-bold">✓</span> ไม่ต้องโหลดแอป
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-emerald-600 font-bold">✓</span> PromptPay ทันใจ
+                  <span className="text-emerald-600 font-bold">✓</span> พาสดิจิทัลและคูปองในมือถือ
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-emerald-600 font-bold">✓</span> คูปองฟรี 2-3 ร้าน/พาส
@@ -110,12 +111,12 @@ export default function HomePage() {
                     <span className="w-3 h-3 rounded-full bg-emerald-400" />
                     <span className="text-xs text-slate-500 ml-1 font-mono font-medium">DayPass Ticket Preview</span>
                   </div>
-                  <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">● Active</span>
+                  <span className="badge bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-semibold">● ตัวอย่าง</span>
                 </div>
 
                 {/* District quick tabs */}
                 <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-none">
-                  {DISTRICTS.map((d) => (
+                  {availableDistricts.map((d) => (
                     <button
                       key={d.id}
                       onClick={() => setSelectedPreviewDistrict(d)}
@@ -145,11 +146,11 @@ export default function HomePage() {
                   <div className="space-y-2 my-3">
                     <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-200/60">
                       <span className="text-slate-600">จำนวนจุดเช็กอิน</span>
-                      <span className="text-slate-900 font-bold">{selectedPreviewDistrict.stopsCount} จุด (คาเฟ่ + ถ่ายรูป + สตรีทฟู้ด)</span>
+                      <span className="text-slate-900 font-bold">จัดตามงบและสไตล์ที่เลือก</span>
                     </div>
                     <div className="flex items-center justify-between text-xs py-1.5 border-b border-slate-200/60">
                       <span className="text-slate-600">คูปองที่ได้รับ</span>
-                      <span className="text-emerald-600 font-bold">3 ใบ (ของแถม & ส่วนลด)</span>
+                      <span className="text-emerald-600 font-bold">แสดงตามร้านในแผนเที่ยว</span>
                     </div>
                     <div className="flex items-center justify-between text-xs py-1.5">
                       <span className="text-slate-600">งบประมาณแนะนำ</span>
@@ -177,14 +178,16 @@ export default function HomePage() {
         <div className="page-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="badge bg-brand-50 text-brand-700 border border-brand-200 text-xs mb-2 font-semibold">🗺️ ย่านน่าเที่ยวแนะนำ</span>
-            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900">4 ย่านเด็ดกรุงเทพฯ เที่ยวได้ทันที</h2>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900">
+              {USE_MOCK ? '4 ย่านเด็ดกรุงเทพฯ ในตัวอย่างเดโม' : 'ย่านที่เปิดให้วางแผนเที่ยว'}
+            </h2>
             <p className="text-slate-500 text-sm sm:text-base mt-2">
               แต่ละย่านมีเอกลักษณ์เฉพาะตัว ออกแบบเส้นทางให้เดินง่าย คาเฟ่สวย อาหารอร่อย
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-            {DISTRICTS.map((district) => (
+            {availableDistricts.map((district) => (
               <div
                 key={district.id}
                 onClick={() => handleStartPlan(district.id)}
@@ -241,13 +244,15 @@ export default function HomePage() {
                 step: '02',
                 icon: '🗺️',
                 title: 'รับแผนเที่ยวทันที',
-                desc: 'ระบบ AI เรียงเวลาและลำดับร้านตามพิกัดจริง พร้อมคำนวณระยะทางและงบแต่ละจุด',
+                desc: 'ระบบจัดลำดับร้านตามเวลาเปิด-ปิด พิกัด และงบ พร้อมแสดงค่าใช้จ่ายประมาณการ',
               },
               {
                 step: '03',
                 icon: '💳',
-                title: 'ชำระเงิน PromptPay',
-                desc: 'สแกนจ่ายผ่าน QR Code ทุกธนาคาร รับพาสตั๋วดิจิทัลและคูปองของแถมบนมือถือทันที',
+                title: USE_MOCK ? 'ทดลองซื้อพาส' : 'สร้างรายการชำระเงิน',
+                desc: USE_MOCK
+                  ? 'ระบบสร้าง QR จำลองเพื่อสาธิตเท่านั้น ไม่รับเงินจริง'
+                  : 'ระบบสร้าง PromptPay QR ได้เมื่อกำหนดบัญชีรับเงิน แต่ยังต้องเชื่อมการตรวจสอบยอดโอนก่อนออกพาสจริง',
               },
               {
                 step: '04',
@@ -277,34 +282,34 @@ export default function HomePage() {
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs mb-2 font-semibold">💰 ราคาสบายกระเป๋า</span>
             <h2 className="text-2xl sm:text-4xl font-extrabold text-slate-900">เลือกงบที่เหมาะกับคุณ</h2>
-            <p className="text-slate-500 text-sm mt-1">ราคาคุ้มค่า รวมทั้งแผนเที่ยว คูปอง และแต้มสะสม</p>
+            <p className="text-slate-500 text-sm mt-1">ตัวเลขเป็นงบสูงสุดต่อคนสำหรับจัดแผน ไม่ใช่ราคาขายพาส ค่าใช้จ่ายจริงแสดงจากร้านในแผน</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
             {[
               {
                 price: '199',
-                title: 'สายประหยัด สบายๆ',
-                badge: 'คุ้มค่า',
+                title: 'งบเริ่มต้น',
+                badge: 'ประหยัด',
                 badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
                 popular: false,
-                features: ['แผนเที่ยว 3-4 จุดเน้นความคุ้ม', 'คูปองร้านอาหาร 2 ร้าน', 'มิชชั่นสะสมแต้ม 2 จุด', 'แผนที่ GPS นำทาง'],
+                features: ['ตั้งงบสูงสุด 199 บาท/คน', 'เลือกรูปแบบเที่ยวและเวลาเริ่ม', 'เห็นค่าใช้จ่ายจากสถานที่ในแผน', 'คูปองและมิชชั่นตามร้านที่เลือก'],
               },
               {
                 price: '299',
-                title: 'สายเที่ยวชิล ยอดฮิต',
-                badge: '🔥 ยอดนิยมอันดับ 1',
+                title: 'งบแนะนำ',
+                badge: '🔥 ตัวเลือกยอดนิยม',
                 badgeColor: 'bg-brand-50 text-brand-700 border-brand-300',
                 popular: true,
-                features: ['แผนเที่ยว 4 จุดครบทุกหมวด', 'คูปองอาหาร & เครื่องดื่ม 3 ร้าน', 'มิชชั่นถ่ายรูปแต้มพิเศษ', 'แผนที่ GPS นำทาง', 'Fast-lane จองคิวพาส'],
+                features: ['ตั้งงบสูงสุด 299 บาท/คน', 'เลือกรูปแบบเที่ยวและเวลาเริ่ม', 'เห็นค่าใช้จ่ายจากสถานที่ในแผน', 'คูปองและมิชชั่นตามร้านที่เลือก'],
               },
               {
                 price: '399',
-                title: 'สายจัดเต็ม พรีเมียม',
-                badge: 'จัดเต็ม',
+                title: 'งบยืดหยุ่น',
+                badge: 'เที่ยวสบาย',
                 badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
                 popular: false,
-                features: ['แผนเที่ยวคาเฟ่ Specialty & Fine Dine', 'คูปองส่วนลดสูงสุด 4 ร้าน', 'แต้มสะสม x2 สำหรับทริปถัดไป', 'แผนที่ GPS นำทาง', 'สิทธิ์ปลดล็อกแลนด์มาร์กลับ'],
+                features: ['ตั้งงบสูงสุด 399 บาท/คน', 'เลือกรูปแบบเที่ยวและเวลาเริ่ม', 'เห็นค่าใช้จ่ายจากสถานที่ในแผน', 'คูปองและมิชชั่นตามร้านที่เลือก'],
               },
             ].map((tier) => (
               <div

@@ -26,7 +26,7 @@ const serializeShop = (row) => ({
  */
 router.post('/generate', (req, res) => {
   try {
-    const { budget, style, radiusKm, startLat, startLng, people, startTime } = req.body || {};
+    const { districtId, budget, style, radiusKm, startLat, startLng, people, startTime } = req.body || {};
 
     const numBudget = Number(budget);
     if (!Number.isFinite(numBudget) || numBudget <= 0) {
@@ -36,7 +36,16 @@ router.post('/generate', (req, res) => {
       return res.status(400).json({ error: 'สไตล์ต้องเป็น chill หรือ challenge' });
     }
 
-    const rows = db.prepare('SELECT * FROM shops').all();
+    // The current shop catalog contains verified records for Talad Noi only.
+    // Never silently build a plan for a different district from nearby shops.
+    const districtNames = { taladnoi: 'ตลาดน้อย' };
+    if (districtId && !districtNames[districtId]) {
+      return res.status(404).json({ error: 'ย่านนี้ยังไม่มีข้อมูลร้านค้า กรุณาเลือกตลาดน้อยก่อน' });
+    }
+
+    const rows = districtId
+      ? db.prepare('SELECT * FROM shops WHERE district = ?').all(districtNames[districtId])
+      : db.prepare('SELECT * FROM shops').all();
     const shops = rows.map(serializeShop);
 
     const result = generatePlan(shops, {
@@ -46,7 +55,8 @@ router.post('/generate', (req, res) => {
       startLat: Number(startLat) || 13.7335,
       startLng: Number(startLng) || 100.5126,
       people: Number(people) || 1,
-      startTime: startTime || '10:00'
+      startTime: startTime || '10:00',
+      districtName: districtId ? districtNames[districtId] : undefined
     });
 
     if (!result.plan || result.plan.items.length === 0) {

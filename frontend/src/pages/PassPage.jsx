@@ -281,6 +281,7 @@ export default function PassPage() {
   const [pass, setPass] = useState(null);
   const [loading, setLoading] = useState(true);
   const [totalPoints, setTotalPoints] = useState(10);
+  const [pointTransactions, setPointTransactions] = useState([]);
   const [tab, setTab] = useState('plan');
   const [copied, setCopied] = useState(false);
 
@@ -290,6 +291,7 @@ export default function PassPage() {
       setPass(data);
       const pts = await getPoints(getDeviceId());
       setTotalPoints(pts.totalPoints);
+      setPointTransactions(Array.isArray(pts.transactions) ? pts.transactions : []);
     } catch {
       // Fallback
     } finally {
@@ -332,6 +334,10 @@ export default function PassPage() {
 
   function handlePointsEarned(newTotal) {
     setTotalPoints(newTotal);
+    getPoints(getDeviceId()).then((balance) => {
+      setTotalPoints(balance.totalPoints);
+      setPointTransactions(Array.isArray(balance.transactions) ? balance.transactions : []);
+    }).catch(() => {});
   }
 
   if (loading) {
@@ -425,12 +431,45 @@ export default function PassPage() {
                 <div>
                   <span className="block font-extrabold">{totalPoints} แต้มสะสม</span>
                   <span className="text-[10px] text-slate-500 font-medium">= {totalPoints * 2} บาท</span>
+                  <span className="text-[10px] text-slate-500 font-medium block">ใช้ลดได้สูงสุด 30% ต่อออเดอร์</span>
                 </div>
               </div>
             </div>
 
           </div>
         </div>
+
+        <section className="glass-card bg-white mb-6" aria-labelledby="points-history-title">
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h2 id="points-history-title" className="font-extrabold text-slate-900">ประวัติแต้มล่าสุด</h2>
+            <span className="text-xs text-slate-500">1 แต้ม = 2 บาท · ใช้ลดได้ไม่เกิน 30% ของยอดต่อออเดอร์</span>
+          </div>
+          {pointTransactions.length === 0 ? (
+            <p className="text-sm text-slate-500">ยังไม่มีรายการแต้ม</p>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {pointTransactions.slice(0, 10).map((transaction, index) => {
+                const date = new Date(transaction.at);
+                const dateLabel = Number.isNaN(date.getTime())
+                  ? 'ไม่ทราบวันที่'
+                  : new Intl.DateTimeFormat('th-TH', {
+                    dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok',
+                  }).format(date);
+                return (
+                  <li key={`${transaction.at}-${index}`} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                    <div className="min-w-0">
+                      <p className="text-slate-800 font-medium truncate">{transaction.reason || 'รายการแต้ม'}</p>
+                      <time className="text-xs text-slate-500" dateTime={transaction.at}>{dateLabel}</time>
+                    </div>
+                    <span className={`flex-shrink-0 font-extrabold ${transaction.delta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                      {transaction.delta > 0 ? '+' : ''}{transaction.delta} แต้ม
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         {/* ── TABS BAR ────────────────────────────────────── */}
         <div className="flex border-b border-slate-200 mb-6 gap-2 sm:gap-4 overflow-x-auto scrollbar-none">

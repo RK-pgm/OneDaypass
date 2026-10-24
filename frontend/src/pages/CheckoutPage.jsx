@@ -113,7 +113,11 @@ function CheckoutContent({ orderId }) {
           </button>
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">ชำระเงินผ่าน PromptPay</h1>
-            <p className="text-slate-500 text-xs sm:text-sm">สแกนจ่ายได้ทุกแอปพลิเคชันธนาคาร รับพาสทันที</p>
+            <p className="text-slate-500 text-xs sm:text-sm">
+              {canSimulatePayment
+                ? 'โหมดสาธิตเท่านั้น QR นี้ไม่รับเงินจริงและไม่ควรนำไปสแกนจ่าย'
+                : 'ตรวจสอบชื่อผู้รับและยอดเงินในแอปธนาคารก่อนชำระ'}
+            </p>
           </div>
         </div>
 
@@ -127,7 +131,7 @@ function CheckoutContent({ orderId }) {
               <div className="flex items-center gap-2 mb-4">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-xs uppercase font-bold tracking-wider text-slate-700">
-                  พร้อมเพย์ (PromptPay QR)
+                  {canSimulatePayment ? 'QR จำลองสำหรับสาธิต' : 'พร้อมเพย์ (PromptPay QR)'}
                 </span>
               </div>
 
@@ -141,22 +145,14 @@ function CheckoutContent({ orderId }) {
                   level="M"
                 />
                 <div className="mt-3 flex items-center gap-1.5 text-slate-900 text-xs font-bold font-mono">
-                  <span>📱 สแกนเพื่อจ่าย {finalAmount.toLocaleString()} บาท</span>
+                  <span>{canSimulatePayment ? '🧪 รหัสตัวอย่าง — ห้ามชำระเงินจริง' : `📱 ยอดชำระ ${finalAmount.toLocaleString()} บาท`}</span>
                 </div>
               </div>
 
-              <div className="text-center mt-5">
-                <p className="text-slate-400 text-xs font-medium">หมายเลขอ้างอิง PromptPay</p>
-                <p className="text-slate-900 font-mono font-bold text-lg tracking-widest mt-0.5">
-                  089-XXX-XXXX
-                </p>
-                <p className="text-brand-600 font-semibold text-xs mt-1">
-                  ชื่อบัญชี: บจก. เดย์พาส (ไทยแลนด์)
-                </p>
-              </div>
-
               <div className="mt-4 pt-3 border-t border-slate-100 text-center text-xs text-slate-500">
-                💡 สแกนแล้วกดปุ่ม "ฉันโอนเงินแล้ว" ด้านล่าง
+                {canSimulatePayment
+                  ? 'การกดยืนยันด้านล่างเป็นเพียงการจำลองออกพาส'
+                  : 'โปรดตรวจสอบชื่อบัญชีและยอดเงินที่แสดงในแอปธนาคารก่อนยืนยัน'}
               </div>
             </div>
           </div>
@@ -241,7 +237,7 @@ function CheckoutContent({ orderId }) {
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-600">ราคาพาส</span>
-                  <span className="text-slate-900 font-bold">{order.amount} บาท</span>
+                  <span className="text-slate-900 font-bold">{subtotal.toLocaleString()} บาท</span>
                 </div>
                 <div className="flex justify-between py-1.5 border-b border-slate-100">
                   <span className="text-slate-600">ส่วนลดจากแต้ม</span>
