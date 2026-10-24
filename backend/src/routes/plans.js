@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { generatePlan } = require('../lib/planner');
+const { DISTRICTS } = require('../lib/districts');
 
 const serializeShop = (row) => ({
   id: row.id,
@@ -36,15 +37,12 @@ router.post('/generate', (req, res) => {
       return res.status(400).json({ error: 'สไตล์ต้องเป็น chill หรือ challenge' });
     }
 
-    // The current shop catalog contains verified records for Talad Noi only.
-    // Never silently build a plan for a different district from nearby shops.
-    const districtNames = { taladnoi: 'ตลาดน้อย' };
-    if (districtId && !districtNames[districtId]) {
-      return res.status(404).json({ error: 'ย่านนี้ยังไม่มีข้อมูลร้านค้า กรุณาเลือกตลาดน้อยก่อน' });
+    if (districtId && !DISTRICTS[districtId]) {
+      return res.status(404).json({ error: 'ไม่พบข้อมูลร้านค้าสำหรับย่านที่เลือก' });
     }
 
     const rows = districtId
-      ? db.prepare('SELECT * FROM shops WHERE district = ?').all(districtNames[districtId])
+      ? db.prepare('SELECT * FROM shops WHERE district = ?').all(DISTRICTS[districtId])
       : db.prepare('SELECT * FROM shops').all();
     const shops = rows.map(serializeShop);
 
@@ -56,16 +54,15 @@ router.post('/generate', (req, res) => {
       startLng: Number(startLng) || 100.5126,
       people: Number(people) || 1,
       startTime: startTime || '10:00',
-      districtName: districtId ? districtNames[districtId] : undefined
+      districtName: districtId ? DISTRICTS[districtId] : undefined
     });
 
     if (!result.plan || result.plan.items.length === 0) {
       return res.status(404).json({ error: result.warning || 'ไม่พบสถานที่ท่องเที่ยวในเงื่อนไขที่กำหนด' });
     }
 
-    return res.json({
-      plan: result.plan
-    });
+    result.plan.districtId = districtId || null;
+    return res.json({ plan: result.plan, warning: result.warning });
   } catch (error) {
     console.error('[Error POST /api/plans/generate]:', error);
     return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการสร้างแผนท่องเที่ยว' });

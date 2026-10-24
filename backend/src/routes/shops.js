@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { distanceKm } = require('../lib/haversine');
+const { DISTRICTS } = require('../lib/districts');
 
 const router = express.Router();
 const serialize = (row) => ({
@@ -13,13 +14,20 @@ const serialize = (row) => ({
 });
 
 router.get('/', (req, res) => {
+  const { districtId } = req.query;
+  if (districtId && !DISTRICTS[districtId]) {
+    return res.status(400).json({ error: 'ไม่รู้จักย่านที่ระบุ' });
+  }
   const keys = ['lat', 'lng', 'radiusKm'];
   const provided = keys.filter((key) => req.query[key] !== undefined);
   if (provided.length && provided.length !== keys.length) {
     return res.status(400).json({ error: 'กรุณาระบุ lat, lng และ radiusKm ให้ครบ' });
   }
   if (!provided.length) {
-    return res.json({ shops: db.prepare('SELECT * FROM shops ORDER BY name').all().map(serialize) });
+    const rows = districtId
+      ? db.prepare('SELECT * FROM shops WHERE district = ? ORDER BY name').all(DISTRICTS[districtId])
+      : db.prepare('SELECT * FROM shops ORDER BY name').all();
+    return res.json({ shops: rows.map(serialize) });
   }
   const lat = Number(req.query.lat);
   const lng = Number(req.query.lng);
@@ -27,7 +35,10 @@ router.get('/', (req, res) => {
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180 || !Number.isFinite(radiusKm) || radiusKm <= 0) {
     return res.status(400).json({ error: 'พิกัดหรือรัศมีไม่ถูกต้อง' });
   }
-  const shops = db.prepare('SELECT * FROM shops').all().map(serialize)
+  const rows = districtId
+    ? db.prepare('SELECT * FROM shops WHERE district = ?').all(DISTRICTS[districtId])
+    : db.prepare('SELECT * FROM shops').all();
+  const shops = rows.map(serialize)
     .filter((shop) => distanceKm(lat, lng, shop.lat, shop.lng) <= radiusKm);
   return res.json({ shops });
 });

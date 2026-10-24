@@ -306,6 +306,11 @@ export default function PlanResultPage() {
               <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
                 {plan.items.length} จุดเช็กอิน · ใช้เวลาตามแผนประมาณ {Math.floor(totalMinutes / 60)} ชม. {totalMinutes % 60} นาที (รวมเวลาเดิน) · สำหรับ {people} คน
               </p>
+              {plan.districtId && plan.districtId !== 'taladnoi' && (
+                <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800" role="note">
+                  แผนนี้ใช้ข้อมูลตัวอย่าง โปรดตรวจสอบพิกัด เวลาเปิด ราคา และสิทธิประโยชน์กับสถานที่ก่อนเดินทาง
+                </p>
+              )}
             </div>
           </div>
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { generatePlan, getDeviceId, DISTRICTS, USE_MOCK } from '../api';
+import { generatePlan, getDeviceId, DISTRICTS } from '../api';
 
 const BUDGET_OPTIONS = [
   { value: 199, label: '199', sub: 'ประหยัด', badge: 'คุ้มค่า' },
@@ -27,7 +27,7 @@ function getRadiusLabel(km) {
 
 export default function PlanFormPage() {
   const navigate = useNavigate();
-  const availableDistricts = USE_MOCK ? DISTRICTS : DISTRICTS.filter((district) => district.id === 'taladnoi');
+  const availableDistricts = DISTRICTS;
 
   const [selectedDistrict, setSelectedDistrict] = useState(() => {
     const savedDistrictId = sessionStorage.getItem('daypass_selected_district');
@@ -160,6 +160,11 @@ export default function PlanFormPage() {
                   {gpsLoading ? '⟳ กำลังค้นหา GPS...' : '📍 ใช้พิกัดฉัน'}
                 </button>
               </p>
+              {selectedDistrict.id !== 'taladnoi' && (
+                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800" role="note">
+                  ข้อมูลย่านนี้เป็นชุดตัวอย่าง เวลาเปิด ราคา และสิทธิประโยชน์อาจเปลี่ยนแปลง โปรดตรวจสอบกับสถานที่ก่อนเดินทาง
+                </p>
+              )}
             </div>
 
             {/* 2. งบต่อคน */}

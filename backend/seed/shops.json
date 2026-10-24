@@ -375,5 +375,233 @@
       "title": "ถ่ายรูปกับงานอาร์ตชิ้นโปรดใน RCB Galleria ชั้น 2",
       "points": 5
     }
+  },
+  {
+    "id": "ar01",
+    "name": "Nana Coffee Roasters Ari",
+    "district": "อารีย์",
+    "category": "cafe",
+    "lat": 13.7797,
+    "lng": 100.5447,
+    "avgPrice": 140,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "จิบ Specialty Drip Coffee ท่ามกลางสวนธรรมชาติใจกลางกรุง",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 50,
+    "mission": null
+  },
+  {
+    "id": "ar02",
+    "name": "Gump’s Ari Community Space",
+    "district": "อารีย์",
+    "category": "photo",
+    "lat": 13.7812,
+    "lng": 100.5435,
+    "avgPrice": 0,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "แวะช้อปปิ้ง ถ่ายรูปมุมบันไดนีออนและตู้สติกเกอร์",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 40,
+    "mission": null
+  },
+  {
+    "id": "ar03",
+    "name": "Josh Homemade Pasta & Grill",
+    "district": "อารีย์",
+    "category": "food",
+    "lat": 13.7825,
+    "lng": 100.5412,
+    "avgPrice": 190,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "พาสต้าเส้นสดทรัฟเฟิล และสลัดผักออร์แกนิก",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 60,
+    "mission": null
+  },
+  {
+    "id": "ar04",
+    "name": "Yellow Spoon Pastry",
+    "district": "อารีย์",
+    "category": "dessert",
+    "lat": 13.7801,
+    "lng": 100.5429,
+    "avgPrice": 110,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "เค้กเลมอนเมอแรงค์ และชาร้อนหอมฟุ้ง",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 45,
+    "mission": null
+  },
+  {
+    "id": "bt01",
+    "name": "ข้าวต้มปลาสะพานเหลือง บรรทัดทอง",
+    "district": "บรรทัดทอง",
+    "category": "food",
+    "lat": 13.7425,
+    "lng": 100.5235,
+    "avgPrice": 120,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "เปิดหัวด้วยข้าวต้มปลากะพงสด น้ำซุปใสกลมกล่อม",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 45,
+    "mission": null
+  },
+  {
+    "id": "bt02",
+    "name": "เจ๊โอว หมูกรอบ & ยำแซ่บ",
+    "district": "บรรทัดทอง",
+    "category": "food",
+    "lat": 13.7441,
+    "lng": 100.5222,
+    "avgPrice": 150,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ลิ้มลองหมูกรอบในตำนาน จิ้มซีอิ๊วหวานสูตรพิเศษ",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 50,
+    "mission": null
+  },
+  {
+    "id": "bt03",
+    "name": "หนึ่ง นม นัว (Nueng Nom Nua)",
+    "district": "บรรทัดทอง",
+    "category": "dessert",
+    "lat": 13.7418,
+    "lng": 100.5241,
+    "avgPrice": 85,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "นมสดตุ๋นแท้ คู่โทสต์เนยสดชุ่มฉ่ำสังขยาใบเตย",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 40,
+    "mission": null
+  },
+  {
+    "id": "bt04",
+    "name": "ถ้วยถังไอติม บรรทัดทอง",
+    "district": "บรรทัดทอง",
+    "category": "dessert",
+    "lat": 13.7432,
+    "lng": 100.5255,
+    "avgPrice": 90,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ไอศกรีมน้ำเต้าหู้ และหมั่นโถวทอดกรอบนอกนุ่มใน",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 40,
+    "mission": null
+  },
+  {
+    "id": "pn01",
+    "name": "ออน ล็อก หยุ่น เก่าแก่ 90 ปี",
+    "district": "พระนคร",
+    "category": "cafe",
+    "lat": 13.7485,
+    "lng": 100.5015,
+    "avgPrice": 90,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ชุดอาหารเช้า ขนมปังปิ้งเนยน้ำตาล และชาเย็นโบราณ",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 45,
+    "mission": null
+  },
+  {
+    "id": "pn02",
+    "name": "จุดชมวิวเสาชิงช้า & ลานคนเมือง",
+    "district": "พระนคร",
+    "category": "photo",
+    "lat": 13.7518,
+    "lng": 100.5012,
+    "avgPrice": 0,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "เช็กอินถ่ายภาพแลนด์มาร์กสีแดงสง่างามคู่พระนคร",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 35,
+    "mission": null
+  },
+  {
+    "id": "pn03",
+    "name": "ทิพย์สมัย ผัดไทยประตูผี",
+    "district": "พระนคร",
+    "category": "food",
+    "lat": 13.7525,
+    "lng": 100.5048,
+    "avgPrice": 160,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ผัดไทยเส้นจันท์มันกุ้งห่อไข่ และน้ำส้มคั้นแท้เกล็ดส้ม",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 50,
+    "mission": null
+  },
+  {
+    "id": "pn04",
+    "name": "มนต์ นมสด เสาชิงช้า",
+    "district": "พระนคร",
+    "category": "dessert",
+    "lat": 13.7533,
+    "lng": 100.5009,
+    "avgPrice": 80,
+    "tags": [
+      "chill",
+      "challenge"
+    ],
+    "recommendedMenu": "ขนมปังนึ่งสังขยาไข่ และนมสดแท้ 100% หอมมัน",
+    "coupon": null,
+    "openFrom": null,
+    "openTo": null,
+    "durationMin": 45,
+    "mission": null
   }
 ]
