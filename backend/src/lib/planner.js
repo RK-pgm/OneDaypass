@@ -275,7 +275,8 @@ function generatePlan(shops = [], options = {}) {
       couponObj = {
         id: `c-${s.id}`,
         title: s.coupon.title,
-        valueText: s.coupon.valueText || ''
+        valueText: s.coupon.valueText || '',
+        isDemo: Boolean(s.isDemo)
       };
       couponAssignedCount++;
     }
@@ -303,7 +304,8 @@ function generatePlan(shops = [], options = {}) {
       durationMin: item.durationMin,
       distanceFromPrevKm: item.distFromPrevKm,
       coupon: couponObj,
-      mission: missionObj
+      mission: missionObj,
+      isDemo: Boolean(s.isDemo)
     };
   });
 

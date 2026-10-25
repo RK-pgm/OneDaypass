@@ -5,6 +5,7 @@ const PASS_PACKAGE_CONFIG = {
     badge: 'แผนเที่ยว 1 วัน',
     pricePerPerson: 199,
     transitAdvice: 'ราคาและสิทธิประโยชน์เป็นข้อมูลต้นแบบ ไม่รวมค่าเดินทาง และไม่มีการเรียกเก็บเงินจริง',
+    placesCount: 4,
   },
   explorer: {
     id: 'explorer',

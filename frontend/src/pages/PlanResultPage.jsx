@@ -157,8 +157,8 @@ export default function PlanResultPage() {
       badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       icon: '🎟️',
       pricePerPerson: 199,
-      desc: `ต้นแบบสำหรับแผนเที่ยว ${plan.items.length} จุดในหนึ่งวัน ราคานี้ยังไม่ใช่ราคาขายที่ผ่านการประเมินต้นทุน`,
-      perks: [`แผนเที่ยว ${plan.items.length} จุดตามแผน`, `คูปองที่แสดงในแผน ${plan.items.filter((item) => item.coupon).length} รายการ (ถ้ามี)`, 'มิชชั่นและแต้มเป็นข้อมูลตัวอย่าง'],
+      desc: 'ต้นแบบสำหรับแผนเที่ยว 4 จุดในหนึ่งวัน ราคานี้ยังไม่ใช่ราคาขายที่ผ่านการประเมินต้นทุน',
+      perks: ['แผนเที่ยวครบ 4 จุด', `คูปองในแผน ${plan.items.filter((item) => item.coupon).length} รายการ (ถ้ามี)`, 'มิชชั่นและแต้มเป็นข้อมูลตัวอย่าง'],
       transitAdvice: 'ไม่รวมค่าเดินทาง และไม่มีสิทธิ์เดินทางหรือบริการพิเศษรวมอยู่',
     },
     {
@@ -168,8 +168,8 @@ export default function PlanResultPage() {
       badgeColor: 'bg-orange-50 text-orange-700 border-orange-200',
       icon: '🎫',
       pricePerPerson: 299,
-      desc: 'เพิ่มแผนเที่ยวให้ครบ 6 จุด พร้อมคูปองจากร้านจริง 2 ใบต่อคน มิชชั่นสะสมแต้ม และแต้มจากการซื้อพาส',
-      perks: ['แผนเที่ยวครบ 6 จุด', 'คูปองจากร้านที่ร่วมรายการ 2 ใบ/คนหลังซื้อ', 'มีมิชชั่นและรับแต้มจากการซื้อพาส'],
+      desc: 'เพิ่มแผนเที่ยวให้ครบ 6 จุด พร้อมคูปอง 2 ใบต่อคน มิชชั่นสะสมแต้ม และแต้มจากการซื้อพาส',
+      perks: ['แผนเที่ยวครบ 6 จุด', 'คูปอง 2 ใบ/คนหลังซื้อ (คูปองตัวอย่างจะระบุชัดเจน)', 'มีมิชชั่นและรับแต้มจากการซื้อพาส'],
       transitAdvice: 'ไม่รวมค่าเดินทาง และไม่มีสิทธิ์เดินทางหรือบริการพิเศษรวมอยู่',
     },
   ];
@@ -190,7 +190,7 @@ export default function PlanResultPage() {
   async function handleSelectPackage(packageId) {
     if (packageId === selectedPackageId || packageLoading) return;
     setError('');
-    if (packageId === 'single') {
+    if (packageId === 'single' && originalPlanRef.current.items.length === 4) {
       setPlan(originalPlanRef.current);
       sessionStorage.setItem('daypass_plan', JSON.stringify(originalPlanRef.current));
       setSelectedPackageId(packageId);
@@ -221,14 +221,15 @@ export default function PlanResultPage() {
         people,
         passPackageId: packageId,
       });
-      if (!result.plan || result.plan.items.length !== 6) {
-        throw new Error(result.warning || 'จัดแผน 6 จุดสำหรับพาสนี้ไม่สำเร็จ');
+      const requiredStops = packageId === 'single' ? 4 : 6;
+      if (!result.plan || result.plan.items.length !== requiredStops) {
+        throw new Error(result.warning || `จัดแผน ${packageId === 'single' ? 4 : 6} จุดสำหรับพาสนี้ไม่สำเร็จ`);
       }
       setPlan(result.plan);
       sessionStorage.setItem('daypass_plan', JSON.stringify(result.plan));
       setSelectedPackageId(packageId);
     } catch (err) {
-      setError(err.message || 'สร้างแผนพาส 6 จุดไม่สำเร็จ');
+      setError(err.message || `สร้างแผนพาส ${packageId === 'single' ? 4 : 6} จุดไม่สำเร็จ`);
     } finally {
       setPackageLoading(false);
     }
@@ -419,7 +420,7 @@ export default function PlanResultPage() {
 
               {plan.demoGenerated && (
                 <p className="mt-2 max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800" role="note">
-                  ย่านนี้ยังไม่มีข้อมูลร้านค้าจริง แผนนี้ใช้จุดตัวอย่าง ไม่มีคูปองหรือสิทธิประโยชน์จริง โปรดตรวจสอบสถานที่ก่อนเดินทาง
+                  ข้อมูลร้านจริงในย่านนี้ยังไม่เพียงพอ แผนจึงเติมจุดตัวอย่างให้ครบตามแพ็กเกจ คูปองหรือมิชชั่นที่ระบุว่าเป็นตัวอย่างใช้สิทธิ์กับร้านค้าจริงไม่ได้
                 </p>
               )}
               {!plan.demoGenerated && plan.districtId && plan.districtId !== 'taladnoi' && (
@@ -508,7 +509,7 @@ export default function PlanResultPage() {
               <div className="space-y-2 text-xs text-slate-600 font-medium">
                 <div className="flex items-center gap-2">
                   <span className="text-emerald-600 font-bold">✓</span>
-                  <span>คูปองจากร้านค้า {couponCount} รายการ</span>
+                  <span>คูปองในแผน {couponCount} รายการ</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-purple-600 font-bold">✓</span>
@@ -588,6 +589,7 @@ export default function PlanResultPage() {
                       {item.coupon && (
                         <span className="badge bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
                           🎫 {item.coupon.title}
+                          {item.coupon.isDemo && <span className="ml-1 text-amber-700">(ตัวอย่าง ไม่มีสิทธิ์จริง)</span>}
                         </span>
                       )}
                       {item.mission && (

@@ -21,7 +21,7 @@ async function runE2ETest() {
   const pRes = await fetch(`${base}/api/plans/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ budget: 350, style: 'cafe', radiusKm: 2, startTime: '10:00' })
+    body: JSON.stringify({ budget: 350, style: 'cafe', radiusKm: 2, startTime: '10:00', passPackageId: 'single' })
   });
   const p = await pRes.json();
   assert(p.plan && p.plan.items.length >= 3 && p.plan.style === 'cafe', 'Plan generation failed for selected style');
@@ -47,8 +47,55 @@ async function runE2ETest() {
   }
   console.log('✅ 3a. All 4 seeded districts generated itineraries');
 
+  for (const district of seededDistricts) {
+    for (const passPackageId of ['single', 'explorer']) {
+      const packageResponse = await fetch(`${base}/api/plans/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...district,
+          budget: 2000,
+          style: 'chill',
+          radiusKm: 3,
+          startTime: '09:00',
+          endTime: '22:00',
+          passPackageId,
+        }),
+      });
+      const packageResult = await packageResponse.json();
+      const expectedStops = passPackageId === 'single' ? 4 : 6;
+      assert(
+        packageResponse.ok && packageResult.plan?.items.length === expectedStops,
+        `${district.districtName} ${passPackageId} package did not generate ${expectedStops} stops`
+      );
+      if (passPackageId === 'explorer') {
+        assert(
+          packageResult.plan.items.filter((item) => item.coupon).length === 2 &&
+            packageResult.plan.items.some((item) => item.mission),
+          `${district.districtName} explorer package did not include its coupons and mission`
+        );
+        assert(
+          !packageResult.plan.items.some((item) => item.coupon?.isDemo && !item.coupon.title.includes('ตัวอย่าง')),
+          `${district.districtName} included an unlabeled demo coupon`
+        );
+      }
+    }
+  }
+  console.log('✅ 3a. All seeded districts generated exactly 4 or 6 stops with required explorer benefits');
+
   // 4. Create Order
   const deviceId = `dev-test-${Date.now()}`;
+  const shortSingleOrderRes = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId,
+      plan: { ...p.plan, items: p.plan.items.slice(1), selectedPackage: { id: 'single' } },
+      people: 1,
+      usePoints: 0,
+    }),
+  });
+  assert.strictEqual(shortSingleOrderRes.status, 400, 'A 3-stop itinerary was accepted for the 4-stop single package');
   const oRes = await fetch(`${base}/api/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -176,10 +223,91 @@ async function runE2ETest() {
   });
   const demoPlanResult = await demoPlanRes.json();
   assert(demoPlanRes.ok && demoPlanResult.plan?.demoGenerated, 'Unmapped destination demo plan was not generated');
-  assert(demoPlanResult.warning?.includes('ไม่มีคูปองหรือสิทธิประโยชน์จริง'), 'Demo itinerary warning did not explain its limitations');
+  assert(demoPlanResult.warning?.includes('จุดตัวอย่าง'), 'Demo itinerary warning did not explain its limitations');
   assert(demoPlanResult.plan.items.length >= 3, 'Demo destination plan has too few stops');
   assert(demoPlanResult.plan.items.every((item) => item.shopName.includes('จุดตัวอย่าง')), 'Demo itinerary included unverified venue names');
   assert(demoPlanResult.plan.items.every((item) => !item.coupon), 'Demo itinerary advertised real coupons');
+
+  const remoteExplorerRes = await fetch(`${base}/api/plans/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      districtId: 'yaowarat',
+      districtName: 'เยาวราช - ไชน่าทาวน์',
+      provinceId: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      budget: 350,
+      style: 'cafe',
+      radiusKm: 2,
+      startLat: 13.7404,
+      startLng: 100.5133,
+      startTime: '10:00',
+      endTime: '22:00',
+      passPackageId: 'explorer',
+    }),
+  });
+  const remoteExplorer = await remoteExplorerRes.json();
+  assert(
+    remoteExplorerRes.ok &&
+      remoteExplorer.plan?.items.length === 6 &&
+      remoteExplorer.plan.items.filter((item) => item.coupon?.isDemo).length === 2 &&
+      remoteExplorer.plan.items.some((item) => item.mission),
+    'Explorer package for an unmapped destination did not generate 6 labeled demo stops, 2 sample coupons, and a mission'
+  );
+  const remoteSingleRes = await fetch(`${base}/api/plans/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      districtId: 'yaowarat',
+      districtName: 'เยาวราช - ไชน่าทาวน์',
+      provinceId: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      budget: 350,
+      style: 'cafe',
+      radiusKm: 2,
+      startLat: 13.7404,
+      startLng: 100.5133,
+      startTime: '10:00',
+      endTime: '22:00',
+      passPackageId: 'single',
+    }),
+  });
+  const remoteSingle = await remoteSingleRes.json();
+  assert(
+    remoteSingleRes.ok && remoteSingle.plan?.items.length === 4 && remoteSingle.plan.demoGenerated,
+    'Single package for an unmapped destination did not generate 4 labeled demo stops'
+  );
+  const remoteExplorerOrderRes = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId,
+      plan: { ...remoteExplorer.plan, selectedPackage: { id: 'explorer' } },
+      people: 1,
+      usePoints: 0,
+    }),
+  });
+  const remoteExplorerOrder = await remoteExplorerOrderRes.json();
+  assert(remoteExplorerOrderRes.status === 201, 'Explorer package with sample benefits could not be purchased');
+  const remoteExplorerConfirmRes = await fetch(`${base}/api/orders/${remoteExplorerOrder.orderId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const remoteExplorerPassResult = await remoteExplorerConfirmRes.json();
+  assert(remoteExplorerConfirmRes.ok, 'Explorer sample pass could not be confirmed');
+  const remoteExplorerPass = remoteExplorerPassResult;
+  const remotePass = await fetch(`${base}/api/passes/${remoteExplorerPass.passId}`).then((response) => response.json());
+  assert(
+    remotePass.coupons.length === 2 && remotePass.coupons.every((coupon) => coupon.isDemo),
+    'Sample coupons were not clearly marked after pass purchase'
+  );
+  const sampleRedeem = await fetch(`${base}/api/coupons/${remotePass.coupons[0].id}/redeem`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deviceId, passId: remotePass.id }),
+  });
+  assert(sampleRedeem.status === 409, 'A sample coupon was redeemable as a real shop benefit');
 
   const customPlanRes = await fetch(`${base}/api/plans/generate`, {
     method: 'POST',

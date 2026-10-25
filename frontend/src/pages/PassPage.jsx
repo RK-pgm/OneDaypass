@@ -46,12 +46,18 @@ function CouponCard({ coupon, passId, onRedeemed }) {
             </span>
           </div>
           <p className="text-emerald-700 font-extrabold text-base sm:text-lg">{coupon.title}</p>
-          <p className="text-slate-500 text-xs mt-1">แสดงหน้าร้านเพื่อรับสิทธิ์กับพนักงาน</p>
+          <p className="text-slate-500 text-xs mt-1">
+            {coupon.isDemo ? 'คูปองตัวอย่าง ไม่สามารถใช้สิทธิ์กับร้านค้าจริงได้' : 'แสดงหน้าร้านเพื่อรับสิทธิ์กับพนักงาน'}
+          </p>
         </div>
 
         {coupon.used ? (
           <span className="badge bg-slate-100 text-slate-500 border border-slate-200 text-xs font-semibold">
             ✓ ใช้แล้ว
+          </span>
+        ) : coupon.isDemo ? (
+          <span className="badge bg-amber-50 text-amber-700 border border-amber-200 text-xs font-semibold">
+            ตัวอย่าง
           </span>
         ) : confirming ? (
           <div className="flex flex-col sm:flex-row gap-1.5 flex-shrink-0">
