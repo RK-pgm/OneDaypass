@@ -73,7 +73,7 @@ export default function AuthGatePage({ onAuthenticated }) {
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
 
   // Real Google OAuth Configuration state
-  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '254537503870-fpdrlfv5tarvk71gajt68v9rpe8ps4sq.apps.googleusercontent.com';
   const [googleClientId, setGoogleClientId] = useState(() => {
     try {
       return localStorage.getItem('daypass_google_client_id') || envGoogleClientId;
