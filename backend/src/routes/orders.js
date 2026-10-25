@@ -3,6 +3,7 @@ const express = require('express');
 const db = require('../db');
 const { calcPointsDiscount } = require('../lib/pointsDiscount');
 const { bangkokDate } = require('../lib/dates');
+const { PASS_PACKAGE_CONFIG } = require('../lib/passPackages');
 
 const router = express.Router();
 const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'heritage', 'challenge', 'night']);
@@ -60,10 +61,6 @@ async function findShopsForPlan(items) {
   };
 }
 
-const PACKAGE_CONFIG = {
-  single: { id: 'single', title: 'พาสเที่ยว 1 วัน (ต้นแบบ)', badge: 'แผนเที่ยว 1 วัน', pricePerPerson: 199, transitAdvice: 'ราคาและสิทธิประโยชน์เป็นข้อมูลต้นแบบ ไม่รวมค่าเดินทาง และไม่มีการเรียกเก็บเงินจริง' },
-};
-
 router.post('/', async (req, res, next) => {
   try {
     const { deviceId, plan, people, usePoints = 0 } = req.body || {};
@@ -80,8 +77,23 @@ router.post('/', async (req, res, next) => {
     }
 
     const packageId = plan.selectedPackage?.id ?? 'single';
-    const pkg = PACKAGE_CONFIG[packageId];
+    const pkg = PASS_PACKAGE_CONFIG[packageId];
     if (!pkg) return res.status(400).json({ error: 'รูปแบบพาสไม่ถูกต้อง กรุณาเลือกพาสที่มีในระบบ' });
+    if (pkg.placesCount && (
+      trustedPlan.items.length !== pkg.placesCount ||
+      trustedPlan.items.filter((item) => item.coupon).length < pkg.couponCount ||
+      trustedPlan.items.filter((item) => item.mission).length < pkg.missionCount
+    )) {
+      return res.status(400).json({ error: 'แผนไม่ครบสิทธิ์ของพาสนี้ กรุณาสร้างแผน 6 จุดที่มีคูปอง 2 ใบและมิชชั่น' });
+    }
+    if (pkg.couponCount) {
+      let couponsLeft = pkg.couponCount;
+      trustedPlan.items = trustedPlan.items.map((item) => {
+        if (!item.coupon || couponsLeft <= 0) return { ...item, coupon: null };
+        couponsLeft -= 1;
+        return item;
+      });
+    }
     const passPricePerPerson = pkg.pricePerPerson;
 
     trustedPlan.selectedPackage = {

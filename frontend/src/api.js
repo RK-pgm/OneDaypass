@@ -511,6 +511,48 @@ export async function generatePlan(body) {
         time: timeStr,
       };
     });
+    let planItems = adjustedItems;
+    if (body.passPackageId === 'explorer') {
+      let extraCurrentMinutes = currentMinutes;
+      const extraItems = Array.from({ length: Math.max(0, 6 - adjustedItems.length) }, (_, index) => {
+        const previous = adjustedItems.at(-1);
+        const order = adjustedItems.length + index + 1;
+        const hour = Math.floor(extraCurrentMinutes / 60) % 24;
+        const minute = extraCurrentMinutes % 60;
+        const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+        extraCurrentMinutes += 45;
+        return {
+          order,
+          time,
+          shopId: `${targetDest.id}_demo_${order}`,
+          shopName: `จุดแวะตัวอย่าง ${order} · ${targetDest.name}`,
+          category: index === 0 ? 'photo' : 'activity',
+          lat: previous.lat + 0.001 * (index + 1),
+          lng: previous.lng + 0.001 * (index + 1),
+          activity: 'จุดแวะตัวอย่างสำหรับแผนพาส 6 จุด',
+          estCost: 0,
+          durationMin: 30,
+          distanceFromPrevKm: 0.2,
+          coupon: null,
+          mission: index === 0 ? {
+            id: `m-${targetDest.id}_demo_${order}`,
+            title: `ภารกิจถ่ายรูปจุดแวะ ${order}`,
+            points: 5,
+          } : null,
+        };
+      });
+      currentMinutes = extraCurrentMinutes;
+      const availableCoupons = adjustedItems.filter((item) => item.coupon).slice(0, 2);
+      if (availableCoupons.length < 2) {
+        throw new Error('แผนตัวอย่างนี้มีคูปองไม่พอสำหรับพาส 6 จุด');
+      }
+      const couponByShop = new Map(availableCoupons.map((item) => [item.shopId, item.coupon]));
+      planItems = [...adjustedItems, ...extraItems].slice(0, 6).map((item, index) => ({
+        ...item,
+        order: index + 1,
+        coupon: couponByShop.get(item.shopId) || null,
+      }));
+    }
 
     const endH = Math.floor(currentMinutes / 60) % 24;
     const endM = currentMinutes % 60;
@@ -525,6 +567,7 @@ export async function generatePlan(body) {
 
     const generated = {
       ...basePlan,
+      title: body.passPackageId === 'explorer' ? `${basePlan.title} · แผนพาส 6 จุด` : basePlan.title,
       districtId: body.districtId || districtKey,
       districtName: targetDest?.name || basePlan.title,
       provinceId: body.provinceId || targetDest?.provinceId,
@@ -535,7 +578,7 @@ export async function generatePlan(body) {
       endTime: computedEndTime,
       tripDurationText: `${tripHours} ชม. ${tripRemainderMin > 0 ? `${tripRemainderMin} นาที` : ''}`,
       tripTotalHours: tripHours,
-      items: adjustedItems,
+      items: planItems,
     };
     return { plan: generated };
   }
@@ -639,7 +682,14 @@ export async function confirmOrder(orderId, slipImageName) {
       },
       coupons: (targetPlan.items || MOCK_PASS.plan.items)
         .filter((item) => item.coupon)
-        .map((item) => ({ id: item.coupon.id, shopId: item.shopId, title: item.coupon.title, used: false })),
+        .map((item) => ({ id: item.coupon.id, shopId: item.shopId, title: item.coupon.title, used: false }))
+        .flatMap((coupon) => targetPlan.selectedPackage?.id === 'explorer'
+          ? Array.from({ length: order.people || 1 }, (_, index) => ({
+            ...coupon,
+            id: `${coupon.id}_p${index + 1}`,
+            title: `${coupon.title} (ท่านที่ ${index + 1}/${order.people || 1})`,
+          }))
+          : [coupon]),
       checkins: [],
       unlockedMissionIds: [],
       completedMissionIds: [],

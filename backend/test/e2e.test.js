@@ -95,6 +95,60 @@ async function runE2ETest() {
   );
   console.log(`✅ 6. Pass fetched: Status ${pass.status}, ${pass.coupons.length} coupons attached`);
 
+  const explorerPlanRes = await fetch(`${base}/api/plans/generate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      districtId: 'taladnoi',
+      districtName: 'ตลาดน้อย',
+      provinceId: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      budget: 2000,
+      style: 'chill',
+      radiusKm: 3,
+      startLat: 13.7335,
+      startLng: 100.5126,
+      startTime: '09:00',
+      endTime: '22:00',
+      passPackageId: 'explorer',
+    }),
+  });
+  const explorerPlanResult = await explorerPlanRes.json();
+  assert(
+    explorerPlanRes.ok &&
+      explorerPlanResult.plan?.items.length === 6 &&
+      explorerPlanResult.plan.items.filter((item) => item.coupon).length === 2 &&
+      explorerPlanResult.plan.items.some((item) => item.mission),
+    `Explorer plan did not meet its benefits: ${explorerPlanResult.error || 'invalid plan'}`
+  );
+  const explorerOrderRes = await fetch(`${base}/api/orders`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId,
+      plan: { ...explorerPlanResult.plan, selectedPackage: { id: 'explorer' } },
+      people: 1,
+      usePoints: 0,
+    }),
+  });
+  const explorerOrder = await explorerOrderRes.json();
+  assert(explorerOrderRes.status === 201 && explorerOrder.amount === 299, 'Explorer package price should be ฿299 per person');
+  const explorerConfirmRes = await fetch(`${base}/api/orders/${explorerOrder.orderId}/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  const explorerConfirmed = await explorerConfirmRes.json();
+  assert(explorerConfirmRes.ok && explorerConfirmed.pointsEarned > 0, 'Explorer pass did not award purchase points');
+  const explorerPass = await fetch(`${base}/api/passes/${explorerConfirmed.passId}`).then((response) => response.json());
+  assert(
+    explorerPass.coupons.length === 2 &&
+      explorerPass.plan.items.length === 6 &&
+      explorerPass.plan.items.some((item) => item.mission),
+    'Explorer pass did not provide 6 stops, exactly 2 coupons, and a mission'
+  );
+  console.log('✅ 6a. Explorer pass generated 6 stops, issued 2 coupons, included a mission, and awarded points');
+
   // 7. Verify purchase history and cashback are tied to the same device
   const historyRes = await fetch(`${base}/api/passes?deviceId=${deviceId}`);
   const history = await historyRes.json();

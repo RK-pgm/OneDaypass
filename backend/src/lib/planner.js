@@ -89,7 +89,10 @@ function generatePlan(shops = [], options = {}) {
     people = 1,
     startTime = '10:00',
     maxDurationMin,
-    districtName = 'ตลาดน้อย'
+    districtName = 'ตลาดน้อย',
+    targetStops,
+    requiredCoupons = 0,
+    requiredMissions = 0,
   } = options;
 
   const numBudget = Math.max(100, Number(budget) || 500);
@@ -137,7 +140,10 @@ function generatePlan(shops = [], options = {}) {
     { targetCategories: ['dessert', 'cafe'], maxStayMin: 25 }
   ];
 
-  const blueprint = style === 'challenge' ? challengeSlots : chillSlots;
+  const baseBlueprint = style === 'challenge' ? challengeSlots : chillSlots;
+  const blueprint = Number.isInteger(targetStops) && targetStops > 0
+    ? Array.from({ length: targetStops }, (_, index) => baseBlueprint[Math.min(index, baseBlueprint.length - 1)])
+    : baseBlueprint;
 
   // 3. วนเลือกร้านทีละช่วงด้วย Greedy Nearest-Neighbor
   const selectedItems = [];
@@ -150,6 +156,9 @@ function generatePlan(shops = [], options = {}) {
   for (let slotIdx = 0; slotIdx < blueprint.length; slotIdx++) {
     const slot = blueprint[slotIdx];
     const remainingBudget = numBudget - accumulatedCost;
+    const selectedCoupons = selectedItems.filter((item) => item.shop.coupon).length;
+    const selectedMissions = selectedItems.filter((item) => item.shop.mission).length;
+    const remainingSlots = blueprint.length - slotIdx;
 
     // หาร้านที่ยังไม่เคยใช้ และอยู่ในหมวดหมู่ที่ต้องการ
     let candidates = shopsInRange.filter(
@@ -208,6 +217,12 @@ function generatePlan(shops = [], options = {}) {
       }
 
       if (matchesStyle) score += 30;
+      if (shop.coupon && selectedCoupons < requiredCoupons && remainingSlots >= requiredCoupons - selectedCoupons) {
+        score += 500;
+      }
+      if (shop.mission && selectedMissions < requiredMissions && remainingSlots >= requiredMissions - selectedMissions) {
+        score += 500;
+      }
       score -= distFromPrev * 15;
 
       return {
@@ -249,7 +264,7 @@ function generatePlan(shops = [], options = {}) {
 
   // 4. จัดคูปองให้ 2-3 ร้านอาหาร/คาเฟ่ และใส่มิชชั่น
   let couponAssignedCount = 0;
-  const maxCoupons = 3;
+  const maxCoupons = Number.isInteger(requiredCoupons) && requiredCoupons > 0 ? requiredCoupons : 3;
 
   const planItems = selectedItems.map((item, index) => {
     const s = item.shop;
