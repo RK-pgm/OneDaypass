@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
-import { getPass, redeemCoupon, checkin, submitMission, getDeviceId, getPoints } from '../api';
-
-const DEMO_MODE = true;
+import { getPass, redeemCoupon, checkin, submitMission, getDeviceId, getPoints, getApiHealth, USE_MOCK } from '../api';
 
 const CATEGORY_ICON = {
   cafe: '☕ คาเฟ่',
@@ -202,7 +200,7 @@ function MissionCard({ item, passId, alreadyCompleted, onPointsEarned }) {
 }
 
 // ── Sub-component: CheckinButton ─────────────────────────────
-function CheckinButton({ item, passId, alreadyCheckedIn, onCheckin }) {
+function CheckinButton({ item, passId, alreadyCheckedIn, onCheckin, demoMode }) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(alreadyCheckedIn);
 
@@ -216,22 +214,24 @@ function CheckinButton({ item, passId, alreadyCheckedIn, onCheckin }) {
         const result = await checkin({
           passId,
           shopId: item.shopId,
+          deviceId: getDeviceId(),
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
           simulate: false,
         });
         setDone(true);
-        onCheckin(item.shopId, result.unlockedMissionIds);
+        onCheckin(item.shopId, result.unlockedMissionIds, result.totalPoints);
       } else {
         const result = await checkin({
           passId,
           shopId: item.shopId,
+          deviceId: getDeviceId(),
           lat: item.lat,
           lng: item.lng,
           simulate: true,
         });
         setDone(true);
-        onCheckin(item.shopId, result.unlockedMissionIds);
+        onCheckin(item.shopId, result.unlockedMissionIds, result.totalPoints);
       }
     } catch (err) {
       alert(err.message || 'เช็กอินไม่สำเร็จ (แนะนำให้กดปุ่ม "จำลองพิกัด" เพื่อทดสอบ)');
@@ -258,7 +258,7 @@ function CheckinButton({ item, passId, alreadyCheckedIn, onCheckin }) {
       >
         {loading ? '...' : '📍 เช็กอินด้วยตำแหน่ง'}
       </button>
-      {DEMO_MODE && (
+      {demoMode && (
         <button
           id={`btn-simulate-${item.shopId}`}
           title="จำลองว่าอยู่ที่ร้านแล้วสำหรับทดสอบระบบ"
@@ -284,6 +284,7 @@ export default function PassPage() {
   const [pointTransactions, setPointTransactions] = useState([]);
   const [tab, setTab] = useState('plan');
   const [copied, setCopied] = useState(false);
+  const [demoMode, setDemoMode] = useState(USE_MOCK || import.meta.env.DEV);
 
   const loadPass = useCallback(async () => {
     try {
@@ -302,6 +303,14 @@ export default function PassPage() {
   useEffect(() => {
     loadPass();
   }, [loadPass]);
+
+  useEffect(() => {
+    let mounted = true;
+    getApiHealth()
+      .then((config) => { if (mounted) setDemoMode(config.demoMode === true); })
+      .catch(() => { if (mounted) setDemoMode(false); });
+    return () => { mounted = false; };
+  }, []);
 
   function handleCopyCode() {
     if (pass?.code) {
@@ -322,7 +331,7 @@ export default function PassPage() {
     });
   }
 
-  function handleCheckin(shopId, unlockedMissionIds) {
+  function handleCheckin(shopId, unlockedMissionIds, updatedPoints) {
     setPass((prev) => {
       const newCheckins = [...prev.checkins, { shopId, at: new Date().toISOString() }];
       const newUnlocked = [...new Set([...prev.unlockedMissionIds, ...unlockedMissionIds])];
@@ -330,6 +339,10 @@ export default function PassPage() {
       localStorage.setItem(`daypass_pass_${passId}`, JSON.stringify(updated));
       return updated;
     });
+    if (Number.isFinite(updatedPoints)) setTotalPoints(updatedPoints);
+    getPoints(getDeviceId()).then((balance) => {
+      setPointTransactions(Array.isArray(balance.transactions) ? balance.transactions : []);
+    }).catch(() => {});
   }
 
   function handlePointsEarned(newTotal) {
@@ -591,6 +604,7 @@ export default function PassPage() {
                           passId={passId}
                           alreadyCheckedIn={isCheckedIn}
                           onCheckin={handleCheckin}
+                          demoMode={demoMode}
                         />
                       </div>
 

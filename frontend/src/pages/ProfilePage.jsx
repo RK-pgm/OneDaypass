@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getDeviceId, getPoints, getPassHistory, logoutAccount, updateAccountProfile } from '../api';
+import { getBangkokDate } from '../utils/date';
 import {
   PROVINCES,
   REGIONS,
@@ -30,7 +31,7 @@ const RANK_BADGES = [
   { min: 150, label: '🥇 Pro Traveler',color: 'text-yellow-700 bg-yellow-50 border-yellow-200' },
   { min: 300, label: '💎 ตำนาน DayPass',color: 'text-purple-700 bg-purple-50 border-purple-200' },
 ];
-const todayDate = new Date().toISOString().slice(0, 10);
+const todayDate = getBangkokDate();
 
 function getRank(points) {
   let rank = RANK_BADGES[0];

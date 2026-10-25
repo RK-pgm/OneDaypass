@@ -196,12 +196,26 @@ async function runE2ETest() {
 
   // 10. Check-in (Simulated GPS 150m rule)
   const firstShop = p.plan.items[0];
+  const foreignCheckinRes = await fetch(`${base}/api/checkin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      passId: pass.id,
+      shopId: firstShop.shopId,
+      deviceId: `${deviceId}-other`,
+      lat: firstShop.lat,
+      lng: firstShop.lng,
+      simulate: true
+    })
+  });
+  assert(foreignCheckinRes.status === 403, 'A different device was allowed to check in to this pass');
   const chkRes = await fetch(`${base}/api/checkin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       passId: pass.id,
       shopId: firstShop.shopId,
+      deviceId,
       lat: firstShop.lat,
       lng: firstShop.lng,
       simulate: true
@@ -214,10 +228,16 @@ async function runE2ETest() {
   // 11. Redeem Coupon
   if (pass.coupons.length > 0) {
     const couponToUse = pass.coupons[0];
+    const foreignCouponRes = await fetch(`${base}/api/coupons/${couponToUse.id}/redeem`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passId: pass.id, deviceId: `${deviceId}-other` })
+    });
+    assert(foreignCouponRes.status === 403, 'A different device was allowed to redeem this coupon');
     const cpRes = await fetch(`${base}/api/coupons/${couponToUse.id}/redeem`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ passId: pass.id })
+      body: JSON.stringify({ passId: pass.id, deviceId })
     });
     const cp = await cpRes.json();
     assert(cp.ok, 'Coupon redemption failed');

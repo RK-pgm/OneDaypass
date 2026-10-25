@@ -147,55 +147,19 @@ export default function PlanResultPage() {
 
   if (!plan) return null;
 
-  const basePricePerPerson = plan.totalCostPerPerson || 299;
-
   const PASS_PACKAGES = [
     {
       id: 'single',
-      title: 'Standard 1-Day Pass',
-      badge: 'พาส 1 วัน ย่านเดียว',
+      title: 'พาสเที่ยว 1 วัน (ต้นแบบ)',
+      badge: 'แผนเที่ยว 1 วัน',
       badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       icon: '🎟️',
-      pricePerPerson: basePricePerPerson,
-      desc: `เจาะลึก 1 ย่านเต็มวัน ครบ ${plan.items.length} จุดไฮไลต์ พร้อมคูปองอาหารและมิชชั่นสะสมแต้ม`,
-      perks: [`แผนเที่ยว ${plan.items.length} จุดตามเวลา`, 'คูปองร้านอาหาร 3 รายการ', 'มิชชั่นสะสมแต้มพาส'],
-      transitAdvice: 'เดินทางในย่านด้วยการเดินเท้า หรือนั่งวินมอเตอร์ไซค์/สองแถวตามสะดวก (ไม่รวมค่าเดินทาง)',
-    },
-    {
-      id: 'twin',
-      title: 'Twin-District Explorer Pass',
-      badge: 'คอมโบ 2 ย่านเชื่อมต่อ 🔥',
-      badgeColor: 'bg-orange-50 text-orange-700 border-orange-200',
-      icon: '🎫',
-      pricePerPerson: basePricePerPerson + 99,
-      desc: 'เที่ยวต่อเนื่อง 2 ย่านใกล้เคียงในวันเดียว พร้อมเส้นทางเชื่อมต่อและคูปองจุใจ',
-      perks: ['วางแผนเดินทางเชื่อม 2 ย่าน', 'คูปองร้านอาหาร 5 รายการ', 'แต้มสะสมพิเศษ x1.5'],
-      transitAdvice: 'แนะนำเดินทางเชื่อมย่านด้วยเรือด่วนเจ้าพระยา (15-20 บาท) หรือ MRT เพียง 1-2 สถานี',
-    },
-    {
-      id: 'weekend',
-      title: 'Weekend 2-Day Pass',
-      badge: 'สุดสัปดาห์ 2 วัน 🌟',
-      badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
-      icon: '🏖️',
-      pricePerPerson: Math.round(basePricePerPerson * 1.65),
-      desc: 'แผนเที่ยวเสาร์-อาทิตย์ต่อเนื่อง 2 วัน (Day 1 ย่านหลัก + Day 2 ย่านแนะนำคู่เคียง)',
-      perks: ['แผนเที่ยวต่อเนื่อง 2 วันเต็ม', 'คูปองรวม 6 ร้านค้าพาร์ทเนอร์', 'แต้มสะสมดับเบิ้ล x2'],
-      transitAdvice: 'มีไกด์วางแผนการเดินทางเชื่อมต่อตลอดเสาร์-อาทิตย์ พร้อมจุดจอดรถและโรงแรมแนะนำ',
-    },
-    {
-      id: 'vip',
-      title: 'VIP All-Inclusive Pass',
-      badge: 'รวมค่าเดินทาง BTS/เรือ 💎',
-      badgeColor: 'bg-amber-50 text-amber-800 border-amber-200',
-      icon: '👑',
-      pricePerPerson: basePricePerPerson + 180,
-      desc: 'รวมบัตรโดยสาร BTS/MRT 1 วัน (หรือเครดิต Grab 150฿) และคูปองมื้อพิเศษ Fast-lane',
-      perks: ['รวมค่าเดินทางระบบสาธารณะตลอดวัน', 'Fast-lane ลัดคิวร้านดัง', 'คูปองอาหารพรีเมียม 4 ร้าน'],
-      transitAdvice: 'ใช้บัตร One-Day Pass รถไฟฟ้า/เรือด่วนไม่จำกัดเที่ยว หรือโค้ด Grab ผ่านแอป',
+      pricePerPerson: 199,
+      desc: `ต้นแบบสำหรับแผนเที่ยว ${plan.items.length} จุดในหนึ่งวัน ราคานี้ยังไม่ใช่ราคาขายที่ผ่านการประเมินต้นทุน`,
+      perks: [`แผนเที่ยว ${plan.items.length} จุดตามแผน`, `คูปองที่แสดงในแผน ${plan.items.filter((item) => item.coupon).length} รายการ (ถ้ามี)`, 'มิชชั่นและแต้มเป็นข้อมูลตัวอย่าง'],
+      transitAdvice: 'ไม่รวมค่าเดินทาง และไม่มีสิทธิ์เดินทางหรือบริการพิเศษรวมอยู่',
     },
   ];
-
   const selectedPackage = PASS_PACKAGES.find((p) => p.id === selectedPackageId) || PASS_PACKAGES[0];
   const totalCost = selectedPackage.pricePerPerson * people;
   const couponCount = plan.items.filter((item) => item.coupon).length;
@@ -585,10 +549,10 @@ export default function PlanResultPage() {
                     <span>🎫</span>
                     <span>เลือกรูปแบบพาสของคุณ</span>
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">มีหลายรูปแบบให้เลือก พร้อมการวางแผนการเดินทางและสิทธิประโยชน์</p>
+                  <p className="text-xs text-slate-500 mt-0.5">พาสต้นแบบสำหรับแผนนี้ ราคาและสิทธิประโยชน์ยังไม่ผ่านการประเมินเพื่อจำหน่ายจริง</p>
                 </div>
                 <span className="text-xs font-bold text-brand-600 bg-brand-50 border border-brand-200 px-3 py-1 rounded-full">
-                  4 รูปแบบพาส
+                  พาสต้นแบบ
                 </span>
               </div>
 

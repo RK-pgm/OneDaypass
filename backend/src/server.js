@@ -13,7 +13,11 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders(res) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 
 const ready = db.init().then(async () => {
   if (!await db.get('SELECT 1 FROM shops LIMIT 1')) {
@@ -28,7 +32,12 @@ app.use((_req, _res, next) => {
 app.get('/api/health', async (_req, res, next) => {
   try {
     await db.get('SELECT 1');
-    res.json({ ok: true, service: 'daypass-api', database: db.isPostgres ? 'postgres' : 'sqlite' });
+    res.json({
+      ok: true,
+      service: 'daypass-api',
+      database: db.isPostgres ? 'postgres' : 'sqlite',
+      demoMode: process.env.DEMO_MODE === 'true',
+    });
   } catch (error) {
     next(error);
   }
@@ -53,6 +62,18 @@ for (const [mountPath, router] of mounts) {
 app.use((err, _req, res, _next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ error: 'รูปแบบ JSON ไม่ถูกต้อง' });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ error: 'ไฟล์ใหญ่เกิน 5 MB กรุณาเลือกรูปขนาดเล็กลง' });
+  }
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ error: 'รูปแบบไฟล์หรือช่องอัปโหลดไม่ถูกต้อง' });
+  }
+  if (err.status === 400 && err.message === 'รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP)') {
+    return res.status(400).json({ error: err.message });
+  }
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'ข้อมูลที่ส่งมีขนาดใหญ่เกินกำหนด' });
   }
   console.error(err);
   res.status(500).json({ error: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' });

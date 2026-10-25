@@ -101,6 +101,19 @@ router.post('/generate', async (req, res, next) => {
     if (style && !TRAVEL_STYLES.has(style)) {
       return res.status(400).json({ error: 'สไตล์การท่องเที่ยวไม่ถูกต้อง' });
     }
+    const isTime = (value) => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+    if ((startTime !== undefined && !isTime(startTime)) || (req.body?.endTime !== undefined && !isTime(req.body.endTime))) {
+      return res.status(400).json({ error: 'ช่วงเวลาเที่ยวไม่ถูกต้อง' });
+    }
+    const planStartTime = startTime || '10:00';
+    const planEndTime = req.body?.endTime || '18:00';
+    const timeMinutes = (value) => {
+      const [hours, minutes] = value.split(':').map(Number);
+      return hours * 60 + minutes;
+    };
+    const startMinutes = timeMinutes(planStartTime);
+    let endMinutes = timeMinutes(planEndTime);
+    if (endMinutes <= startMinutes) endMinutes += 24 * 60;
 
     const rows = districtId
       ? DISTRICTS[districtId]
@@ -116,7 +129,9 @@ router.post('/generate', async (req, res, next) => {
       startLat: Number(startLat) || 13.7335,
       startLng: Number(startLng) || 100.5126,
       people: Number(people) || 1,
-      startTime: startTime || '10:00',
+      startTime: planStartTime,
+      endTime: planEndTime,
+      maxDurationMin: endMinutes - startMinutes,
       districtName: districtId ? (DISTRICTS[districtId] || districtName) : undefined
     };
     let result = generatePlan(shops, planOptions);
@@ -139,6 +154,8 @@ router.post('/generate', async (req, res, next) => {
 
     result.plan.districtId = districtId || null;
     result.plan.style = style || 'chill';
+    result.plan.startTime = planStartTime;
+    result.plan.endTime = planEndTime;
     if (demoGenerated) {
       result.plan.demoGenerated = true;
       result.plan.title = `แผนตัวอย่างเดโม · ${districtName || DISTRICTS[districtId] || 'ย่านที่เลือก'}`;

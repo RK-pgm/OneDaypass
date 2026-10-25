@@ -41,12 +41,15 @@ function walkingTimeMinutes(distKm) {
 function isShopOpen(shop, arrivalMins, stayMins) {
   const openMins = shop.openFrom ? timeToMinutes(shop.openFrom) : 480; // default 08:00
   const closeMins = shop.openTo ? timeToMinutes(shop.openTo) : 1260; // default 21:00
-
-  // ถ้าเวลาถึงร้านก่อนเวลาเปิด หรืออยู่จนเกินเวลาปิด
-  if (arrivalMins < openMins || arrivalMins + stayMins > closeMins + 15) {
-    return false;
+  const arrivalOfDay = ((arrivalMins % 1440) + 1440) % 1440;
+  const leaving = arrivalOfDay + stayMins;
+  if (closeMins <= openMins) {
+    // ร้านที่เปิดข้ามเที่ยงคืน เช่น 18:00-02:00
+    return arrivalOfDay >= openMins
+      ? leaving <= 1440 + closeMins + 15
+      : arrivalOfDay < closeMins && leaving <= closeMins + 15;
   }
-  return true;
+  return arrivalOfDay >= openMins && leaving <= closeMins + 15;
 }
 
 /**
@@ -85,6 +88,7 @@ function generatePlan(shops = [], options = {}) {
     startLng = 100.5126,
     people = 1,
     startTime = '10:00',
+    maxDurationMin,
     districtName = 'ตลาดน้อย'
   } = options;
 
@@ -185,6 +189,8 @@ function generatePlan(shops = [], options = {}) {
       const arrivalMins = currentMins + walkMins;
       const stayDuration = Math.min(shop.durationMin || 45, slot.maxStayMin);
       const isOpen = isShopOpen(shop, arrivalMins, stayDuration);
+      const withinTripTime = !Number.isFinite(maxDurationMin)
+        || arrivalMins + stayDuration <= timeToMinutes(startTime) + maxDurationMin;
       const matchesStyle = Array.isArray(shop.tags) && shop.tags.includes(style);
 
       let score = 0;
@@ -193,6 +199,7 @@ function generatePlan(shops = [], options = {}) {
       } else {
         score -= 1000; // ร้านปิด หักคะแนนรุนแรง
       }
+      if (!withinTripTime) score -= 1000;
 
       score += 100;
       // ถ้างบเหลือน้อย ให้ความสำคัญกับร้านที่ราคาประหยัด

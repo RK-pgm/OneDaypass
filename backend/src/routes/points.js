@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('node:crypto');
 const router = express.Router();
+const { bangkokDayBounds } = require('../lib/dates');
 const db = require('../db');
 
 const POINT_VALUE_BAHT = 2; // 1 แต้ม = 2 บาท
@@ -58,8 +59,8 @@ router.post('/add', async (req, res, next) => {
     }
 
     const at = new Date().toISOString();
-    const day = at.slice(0, 10);
-    const dateClause = reward.once ? '' : 'AND substr(at, 1, 10) = ?';
+    const { start: dayStart, end: dayEnd } = bangkokDayBounds();
+    const dateClause = reward.once ? '' : 'AND at >= ? AND at < ?';
     const statement = `
       INSERT INTO points_ledger (id, deviceId, delta, reason, at)
       SELECT ?, ?, ?, ?, ?
@@ -71,7 +72,7 @@ router.post('/add', async (req, res, next) => {
       `pt_${crypto.randomUUID()}`, deviceId, delta, reward.reason, at,
       deviceId, reward.reason,
     ];
-    if (!reward.once) values.push(day);
+    if (!reward.once) values.push(dayStart, dayEnd);
     const result = await db.run(statement, ...values);
     if (result.changes !== 1) {
       return res.status(409).json({ error: 'คุณรับแต้มรายการนี้แล้ว' });

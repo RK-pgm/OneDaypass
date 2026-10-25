@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { promisify } = require('node:util');
 const express = require('express');
 const db = require('../db');
+const { bangkokDate } = require('../lib/dates');
 
 const router = express.Router();
 const scrypt = promisify(crypto.scrypt);
@@ -62,7 +63,7 @@ function isValidDateOfBirth(value) {
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) &&
     date.toISOString().slice(0, 10) === value &&
-    date <= new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
+    value <= bangkokDate();
 }
 
 function isValidProfilePhoto(value) {
@@ -311,6 +312,9 @@ router.put('/profile', async (req, res) => {
 
 router.post('/social', async (req, res) => {
   try {
+    if (process.env.NODE_ENV === 'production' || process.env.DEMO_MODE !== 'true') {
+      return res.status(403).json({ error: 'เข้าสู่ระบบด้วย Social แบบจำลองไม่ได้เปิดใช้ในระบบนี้' });
+    }
     const { provider, providerId, email, name, avatar, previousDeviceId } = req.body || {};
     if (!provider || !['google', 'line'].includes(provider)) {
       return res.status(400).json({ error: 'ผู้ให้บริการ Social Login ไม่ถูกต้อง' });

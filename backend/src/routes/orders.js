@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const express = require('express');
 const db = require('../db');
 const { calcPointsDiscount } = require('../lib/pointsDiscount');
+const { bangkokDate } = require('../lib/dates');
 
 const router = express.Router();
 const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'heritage', 'challenge', 'night']);
@@ -15,12 +16,6 @@ async function balanceFor(deviceId) {
 function passCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   return `DP-${Array.from(crypto.randomBytes(5), (b) => alphabet[b % alphabet.length]).join('')}`;
-}
-
-function bangkokDate() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit'
-  }).format(new Date());
 }
 
 async function findShopsForPlan(items) {
@@ -43,6 +38,7 @@ async function findShopsForPlan(items) {
       time: typeof item.time === 'string' ? item.time : '',
       shopId: shop.id,
       shopName: shop.name,
+      district: shop.district,
       category: shop.category,
       lat: shop.lat,
       lng: shop.lng,
@@ -64,6 +60,10 @@ async function findShopsForPlan(items) {
   };
 }
 
+const PACKAGE_CONFIG = {
+  single: { id: 'single', title: 'พาสเที่ยว 1 วัน (ต้นแบบ)', badge: 'แผนเที่ยว 1 วัน', pricePerPerson: 199, transitAdvice: 'ราคาและสิทธิประโยชน์เป็นข้อมูลต้นแบบ ไม่รวมค่าเดินทาง และไม่มีการเรียกเก็บเงินจริง' },
+};
+
 router.post('/', async (req, res, next) => {
   try {
     const { deviceId, plan, people, usePoints = 0 } = req.body || {};
@@ -78,14 +78,23 @@ router.post('/', async (req, res, next) => {
     for (const field of ['districtId', 'districtName', 'provinceId', 'provinceName']) {
       if (typeof plan[field] === 'string' && plan[field].length <= 120) trustedPlan[field] = plan[field];
     }
-    if (plan.selectedPackage && typeof plan.selectedPackage === 'object') {
-      trustedPlan.selectedPackage = Object.fromEntries(
-        ['id', 'title', 'badge', 'transitAdvice']
-          .filter((field) => typeof plan.selectedPackage[field] === 'string')
-          .map((field) => [field, plan.selectedPackage[field].slice(0, 200)])
-      );
-    }
-    const subtotal = Math.round(trustedPlan.totalCostPerPerson * people);
+
+    const packageId = plan.selectedPackage?.id ?? 'single';
+    const pkg = PACKAGE_CONFIG[packageId];
+    if (!pkg) return res.status(400).json({ error: 'รูปแบบพาสไม่ถูกต้อง กรุณาเลือกพาสที่มีในระบบ' });
+    const passPricePerPerson = pkg.pricePerPerson;
+
+    trustedPlan.selectedPackage = {
+      id: pkg.id,
+      title: pkg.title,
+      badge: pkg.badge,
+      pricePerPerson: passPricePerPerson,
+      transitAdvice: pkg.transitAdvice,
+    };
+    trustedPlan.estTripExpensePerPerson = trustedPlan.totalCostPerPerson;
+    trustedPlan.totalCostPerPerson = passPricePerPerson;
+
+    const subtotal = Math.round(passPricePerPerson * people);
     if (subtotal <= 0) return res.status(400).json({ error: 'แผนเที่ยวนี้ไม่มีค่าใช้จ่าย ไม่สามารถสร้างคำสั่งซื้อได้' });
     const pointsBalance = await balanceFor(deviceId);
     if (usePoints > pointsBalance) return res.status(400).json({ error: 'แต้มของคุณไม่เพียงพอ' });
@@ -101,7 +110,7 @@ router.post('/', async (req, res, next) => {
     const orderId = `o_${crypto.randomUUID()}`;
     await db.run(`INSERT INTO orders (id, deviceId, planJson, people, amount, discount, pointsUsed, isDemo, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      orderId, deviceId, JSON.stringify({ ...trustedPlan, demoGenerated: isDemo || undefined }),
+      orderId, deviceId, JSON.stringify(trustedPlan),
       people, quote.amount, quote.discount, quote.pointsUsed, Number(isDemo)
     );
     return res.status(201).json({ orderId, ...quote, isDemo, status: 'pending' });
@@ -159,12 +168,28 @@ router.post('/:orderId/confirm', async (req, res, next) => {
       if (update.changes !== 1) throw new Error('ORDER_ALREADY_CONFIRMED');
       await db.run('INSERT INTO passes (id, orderId, code, status, validDate) VALUES (?, ?, ?, ?, ?)',
         passId, order.id, code, 'active', bangkokDate());
-      for (const item of plan.items) {
-        if (typeof item?.shopId === 'string' && typeof item?.coupon?.title === 'string' && item.coupon.title.trim()) {
-          await db.run(`INSERT INTO coupons (id, passId, shopId, title) VALUES (?, ?, ?, ?)
-            ON CONFLICT DO NOTHING`, `c_${passId}_${item.shopId}`, passId, item.shopId, item.coupon.title.trim());
+
+      const couponShops = plan.items.filter(
+        (item) => typeof item?.shopId === 'string' && typeof item?.coupon?.title === 'string' && item.coupon.title.trim()
+      );
+
+      const allCouponSources = couponShops.map((item) => ({ shopId: item.shopId, title: item.coupon.title.trim() }));
+
+      for (let p = 1; p <= order.people; p++) {
+        for (const item of allCouponSources) {
+          const couponId = order.people === 1
+            ? `c_${passId}_${item.shopId}`
+            : `c_${passId}_${item.shopId}_p${p}`;
+          const couponTitle = order.people === 1
+            ? item.title
+            : `${item.title} (ท่านที่ ${p}/${order.people})`;
+          await db.run(
+            `INSERT INTO coupons (id, passId, shopId, title, holderIndex) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+            couponId, passId, item.shopId, couponTitle, p
+          );
         }
       }
+
       if (order.pointsUsed > 0) {
         if (await balanceFor(order.deviceId) < order.pointsUsed) throw new Error('POINTS_BALANCE_CHANGED');
         await db.run('INSERT INTO points_ledger (id, deviceId, delta, reason, at) VALUES (?, ?, ?, ?, ?)',

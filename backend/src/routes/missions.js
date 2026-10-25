@@ -4,6 +4,7 @@ const multer = require('multer');
 const path = require('node:path');
 const fs = require('node:fs');
 const db = require('../db');
+const { bangkokDate } = require('../lib/dates');
 
 const router = express.Router();
 
@@ -22,11 +23,19 @@ const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (_req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp/i;
-    if (allowed.test(path.extname(file.originalname)) || allowed.test(file.mimetype)) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+    };
+    if (allowedTypes[ext] === file.mimetype.toLowerCase()) {
       return cb(null, true);
     }
-    cb(new Error('รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP)'));
+    const error = new Error('รองรับเฉพาะไฟล์รูปภาพ (JPG, PNG, WEBP)');
+    error.status = 400;
+    cb(error);
   }
 });
 
@@ -44,13 +53,16 @@ router.post('/:missionId/submit', upload.single('image'), async (req, res, next)
     const { missionId } = req.params;
     const { passId, deviceId } = req.body || {};
 
-    if (!passId || !deviceId) {
+    if (typeof passId !== 'string' || !passId || typeof deviceId !== 'string' || !deviceId.trim() || deviceId.length > 128) {
       return res.status(400).json({ error: 'กรุณาระบุ passId และ deviceId' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'กรุณาแนบรูปภาพภารกิจ' });
     }
 
     // 1. ตรวจสอบพาส
     const pass = await db.get(`
-      SELECT p.*, o.planJson 
+      SELECT p.*, o.planJson, o.deviceId AS ownerDeviceId
       FROM passes p 
       JOIN orders o ON o.id = p.orderId 
       WHERE p.id = ?
@@ -58,6 +70,12 @@ router.post('/:missionId/submit', upload.single('image'), async (req, res, next)
 
     if (!pass) {
       return res.status(404).json({ error: 'ไม่พบพาสนี้ในระบบ' });
+    }
+    if (pass.status !== 'active' || pass.validDate !== bangkokDate()) {
+      return res.status(410).json({ error: 'พาสหมดอายุแล้ว ไม่สามารถส่งภารกิจได้' });
+    }
+    if (pass.ownerDeviceId !== deviceId) {
+      return res.status(403).json({ error: 'พาสนี้ไม่ได้เป็นของบัญชีที่กำลังใช้งาน' });
     }
 
     const plan = JSON.parse(pass.planJson);
@@ -83,7 +101,7 @@ router.post('/:missionId/submit', upload.single('image'), async (req, res, next)
     }
 
     const now = new Date().toISOString();
-    const imagePath = req.file ? req.file.filename : 'simulated.jpg';
+    const imagePath = req.file.filename;
     const submissionId = `ms_${crypto.randomUUID()}`;
     const ledgerId = `pt_${crypto.randomUUID()}`;
 

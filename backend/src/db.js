@@ -41,9 +41,9 @@ const sqliteSchema = `
   );
   CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY, passId TEXT NOT NULL REFERENCES passes(id),
-    shopId TEXT NOT NULL, title TEXT NOT NULL,
+    shopId TEXT NOT NULL, title TEXT NOT NULL, holderIndex INTEGER NOT NULL DEFAULT 1 CHECK(holderIndex > 0),
     used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0,1)), redeemedAt TEXT,
-    UNIQUE(passId, shopId)
+    UNIQUE(passId, shopId, holderIndex)
   );
   CREATE TABLE IF NOT EXISTS checkins (
     id TEXT PRIMARY KEY, passId TEXT NOT NULL REFERENCES passes(id), shopId TEXT NOT NULL,
@@ -96,9 +96,9 @@ const postgresSchema = [
   )`,
   `CREATE TABLE IF NOT EXISTS coupons (
     id TEXT PRIMARY KEY, passId TEXT NOT NULL REFERENCES passes(id),
-    shopId TEXT NOT NULL, title TEXT NOT NULL,
+    shopId TEXT NOT NULL, title TEXT NOT NULL, holderIndex INTEGER NOT NULL DEFAULT 1 CHECK(holderIndex > 0),
     used SMALLINT NOT NULL DEFAULT 0 CHECK(used IN (0,1)), redeemedAt TEXT,
-    UNIQUE(passId, shopId)
+    UNIQUE(passId, shopId, holderIndex)
   )`,
   `CREATE TABLE IF NOT EXISTS checkins (
     id TEXT PRIMARY KEY, passId TEXT NOT NULL REFERENCES passes(id), shopId TEXT NOT NULL,
@@ -153,6 +153,7 @@ const camelColumns = new Map(Object.entries({
   durationmin: 'durationMin',
   updatedat: 'updatedAt',
   validdate: 'validDate',
+  holderindex: 'holderIndex',
 }));
 
 function mapPostgresRow(row) {
@@ -208,6 +209,10 @@ const db = {
             await client.query('BEGIN');
             await client.query("SELECT pg_advisory_xact_lock(hashtext('onedaypass-schema-v1'))");
             for (const statement of postgresSchema) await client.query(statement);
+            await client.query('ALTER TABLE coupons ADD COLUMN IF NOT EXISTS holderIndex INTEGER NOT NULL DEFAULT 1 CHECK(holderIndex > 0)');
+            await client.query('ALTER TABLE coupons DROP CONSTRAINT IF EXISTS coupons_passid_shopid_key');
+            await client.query('ALTER TABLE coupons DROP CONSTRAINT IF EXISTS coupons_holder_unique');
+            await client.query('ALTER TABLE coupons ADD CONSTRAINT coupons_holder_unique UNIQUE (passId, shopId, holderIndex)');
             await client.query("UPDATE shops SET isDemo = 1 WHERE substr(id, 1, 5) = 'demo_' AND isDemo = 0");
             await client.query('COMMIT');
           } catch (error) {
@@ -226,6 +231,26 @@ const db = {
         sqlite.pragma('foreign_keys = ON');
         sqlite.pragma('busy_timeout = 5000');
         sqlite.exec(sqliteSchema);
+        const couponColumns = sqlite.prepare('PRAGMA table_info(coupons)').all();
+        if (!couponColumns.some((column) => column.name === 'holderIndex')) {
+          sqlite.exec(`
+            PRAGMA foreign_keys = OFF;
+            BEGIN IMMEDIATE;
+            CREATE TABLE coupons_new (
+              id TEXT PRIMARY KEY, passId TEXT NOT NULL REFERENCES passes(id), shopId TEXT NOT NULL,
+              title TEXT NOT NULL, holderIndex INTEGER NOT NULL DEFAULT 1 CHECK(holderIndex > 0),
+              used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0,1)), redeemedAt TEXT,
+              UNIQUE(passId, shopId, holderIndex)
+            );
+            INSERT INTO coupons_new (id, passId, shopId, title, used, redeemedAt)
+              SELECT id, passId, shopId, title, used, redeemedAt FROM coupons;
+            DROP TABLE coupons;
+            ALTER TABLE coupons_new RENAME TO coupons;
+            CREATE INDEX IF NOT EXISTS idx_coupons_pass ON coupons(passId);
+            COMMIT;
+            PRAGMA foreign_keys = ON;
+          `);
+        }
         if (!sqlite.prepare('PRAGMA table_info(shops)').all().some((column) => column.name === 'isDemo')) {
           sqlite.exec('ALTER TABLE shops ADD COLUMN isDemo INTEGER NOT NULL DEFAULT 0 CHECK(isDemo IN (0, 1))');
         }

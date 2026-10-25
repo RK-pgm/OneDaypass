@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { addPoints, getDeviceId, getPoints, DISTRICTS } from '../api';
+import { getBangkokDate } from '../utils/date';
 
 const NONG_PASS_TIPS = [
   'พกพาวเวอร์แบงก์ พกรอยยิ้ม แล้วออกไปลุยกันครับ! 🔋✨',
@@ -27,7 +28,7 @@ export default function NongPassWidget() {
 
   // Check daily bonus status
   useEffect(() => {
-    const todayKey = `daypass_nongpass_daily_${new Date().toISOString().slice(0, 10)}`;
+    const todayKey = `daypass_nongpass_daily_${getBangkokDate()}`;
     if (localStorage.getItem(todayKey)) {
       setHasClaimedDaily(true);
     }
@@ -67,7 +68,7 @@ export default function NongPassWidget() {
   async function handleClaimDaily() {
     if (hasClaimedDaily) return;
     try {
-      const todayKey = `daypass_nongpass_daily_${new Date().toISOString().slice(0, 10)}`;
+      const todayKey = `daypass_nongpass_daily_${getBangkokDate()}`;
       const rewardPoints = 35;
       await addPoints(getDeviceId(), rewardPoints, 'daily_bonus', 'ของขวัญเช็กอินประจำวันจากน้องพาส 🎁');
       localStorage.setItem(todayKey, 'true');

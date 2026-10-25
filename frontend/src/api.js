@@ -3,6 +3,9 @@
 //  ใช้ mock เฉพาะตอนพัฒนาในเครื่อง; production เรียก backend จริงเป็นค่าเริ่มต้น
 // ============================================================
 
+import { DISTRICT_DESTINATIONS, findDestinationById, PROVINCES } from './data/locations';
+import { getBangkokDate } from './utils/date';
+
 export const USE_MOCK = String(import.meta.env.VITE_USE_MOCK ?? (import.meta.env.DEV ? 'true' : 'false')).toLowerCase() !== 'false';
 const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -53,6 +56,11 @@ async function apiFetch(path, options = {}) {
   return data;
 }
 
+export async function getApiHealth() {
+  if (USE_MOCK) return { ok: true, demoMode: true };
+  return apiFetch('/health');
+}
+
 export async function registerAccount(account, previousDeviceId) {
   return apiFetch('/auth/register', {
     method: 'POST',
@@ -87,8 +95,6 @@ export async function googleLoginAccount(googleAuthPayload, previousDeviceId) {
     body: JSON.stringify({ ...googleAuthPayload, previousDeviceId }),
   });
 }
-
-import { DISTRICT_DESTINATIONS, findDestinationById, PROVINCES } from './data/locations';
 
 // ─────────────────────────────────────────────────────────────
 //  MOCK DATA & DISTRICT PLANS
@@ -382,7 +388,7 @@ const MOCK_PASS = {
   isDemo: true,
   code: 'DP-4F7K2',
   status: 'active',
-  validDate: new Date().toISOString().split('T')[0],
+  validDate: getBangkokDate(),
   people: 2,
   plan: MOCK_PLAN,
   coupons: [
@@ -612,7 +618,7 @@ export async function confirmOrder(orderId, slipImageName) {
       id: passId,
       code: passCode,
       status: 'active',
-      validDate: now.toISOString().split('T')[0],
+      validDate: getBangkokDate(now),
       purchaseDateText: thaiDateStr,
       purchase: {
         orderId: order.orderId,
@@ -821,7 +827,7 @@ export async function redeemCoupon(couponId, passId) {
   }
   return apiFetch(`/coupons/${couponId}/redeem`, {
     method: 'POST',
-    body: JSON.stringify({ passId }),
+    body: JSON.stringify({ passId, deviceId: getDeviceId() }),
   });
 }
 
@@ -829,6 +835,19 @@ export async function redeemCoupon(couponId, passId) {
 export async function checkin(body) {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 600));
+    const passKey = `daypass_pass_${body.passId}`;
+    const savedPass = localStorage.getItem(passKey);
+    const pass = savedPass
+      ? JSON.parse(savedPass)
+      : body.passId === MOCK_PASS.id ? JSON.parse(JSON.stringify(MOCK_PASS)) : null;
+    if (!pass) throw new Error('ไม่พบพาสนี้ในอุปกรณ์');
+    if (!pass.plan?.items?.some((item) => item.shopId === body.shopId)) {
+      throw new Error('ร้านนี้ไม่ได้อยู่ในแผนของพาส');
+    }
+    if (pass.checkins?.some((entry) => entry.shopId === body.shopId)) {
+      throw new Error('เช็กอินร้านนี้แล้ว');
+    }
+
     // Award +3 points for checkin
     const deviceId = body.deviceId || getDeviceId();
     const balanceKey = `daypass_points_${deviceId}`;
@@ -839,7 +858,14 @@ export async function checkin(body) {
     const history = (() => { try { return JSON.parse(localStorage.getItem(historyKey) || '[]'); } catch { return []; } })();
     history.unshift({ delta: 3, reason: `เช็กอิน`, at: new Date().toISOString() });
     localStorage.setItem(historyKey, JSON.stringify(history.slice(0, 20)));
-    return { ok: true, distanceM: 42, unlockedMissionIds: [body.shopId ? `m-${body.shopId}` : 'm-s01'], pointsAwarded: 3, totalPoints: newTotal };
+    const mission = pass.plan.items.find((item) => item.shopId === body.shopId)?.mission;
+    return {
+      ok: true,
+      distanceM: 42,
+      unlockedMissionIds: mission?.id ? [mission.id] : [],
+      pointsAwarded: 3,
+      totalPoints: newTotal,
+    };
   }
   return apiFetch('/checkin', { method: 'POST', body: JSON.stringify(body) });
 }

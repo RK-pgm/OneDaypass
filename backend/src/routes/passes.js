@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const { bangkokDate } = require('../lib/dates');
 const router = express.Router();
 
 router.get('/', async (req, res, next) => {
@@ -32,7 +33,7 @@ router.get('/', async (req, res, next) => {
       passId: row.id,
       orderId: row.orderId,
       code: row.code,
-      status: row.status,
+      status: row.status === 'active' && row.validDate < bangkokDate() ? 'expired' : row.status,
       purchaseDate,
       validDate: row.validDate,
       districtId: plan.districtId || null,
@@ -76,7 +77,8 @@ router.get('/:passId', async (req, res, next) => {
     )`, pass.id)).map((row) => row.missionId);
   const completedMissionIds = (await db.all('SELECT missionId FROM mission_submissions WHERE passId = ?', pass.id))
     .map((row) => row.missionId);
-  return res.json({ id: pass.id, code: pass.code, status: pass.status, isDemo: Boolean(pass.isDemo), validDate: pass.validDate,
+  const status = pass.status === 'active' && pass.validDate < bangkokDate() ? 'expired' : pass.status;
+  return res.json({ id: pass.id, code: pass.code, status, isDemo: Boolean(pass.isDemo), validDate: pass.validDate,
     people: pass.people, plan: JSON.parse(pass.planJson), coupons, checkins, unlockedMissionIds, completedMissionIds,
     purchase: {
       orderId: pass.orderId,

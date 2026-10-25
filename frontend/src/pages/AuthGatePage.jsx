@@ -11,6 +11,7 @@ import {
 } from '../data/locations';
 import { addPoints, getDeviceId, loginAccount, registerAccount, socialLoginAccount, googleLoginAccount } from '../api';
 import { encodeProfilePhoto } from '../utils/profilePhoto';
+import { getBangkokDate } from '../utils/date';
 
 function getSavedAccounts() {
   try {
@@ -35,7 +36,7 @@ const defaultDistrict = findAdministrativeDistrict('bangkok', 'samphanthawong')
   || getAdministrativeDistricts('bangkok')[0];
 const defaultTambon = findAdministrativeSubdistrict('bangkok', defaultDistrict?.id, 'ตลาดน้อย')
   || getAdministrativeSubdistricts('bangkok', defaultDistrict?.id)[0];
-const todayDate = new Date().toISOString().slice(0, 10);
+const todayDate = getBangkokDate();
 
 export default function AuthGatePage({ onAuthenticated }) {
   const navigate = useNavigate();
