@@ -68,7 +68,7 @@ export default function Navbar() {
     <>
       {/* ─── TOP NAVBAR ─── */}
       <nav
-        className={`sticky top-0 z-50 transition-all duration-300 ${
+        className={`sticky top-0 z-50 relative transition-all duration-300 ${
           scrolled
             ? 'shadow-[0_4px_24px_-4px_rgba(0,0,0,0.12)]'
             : ''
@@ -84,13 +84,13 @@ export default function Navbar() {
             : '1px solid rgba(0,0,0,0.04)',
         }}
       >
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 xl:px-8">
+          <div className="flex items-center justify-between gap-3 h-16">
 
             {/* ── Brand Logo ── */}
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2.5 cursor-pointer group select-none"
+              className="flex shrink-0 items-center gap-2.5 cursor-pointer group select-none"
               aria-label="DayPass หน้าแรก"
             >
               <div className="relative w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0">
@@ -126,7 +126,7 @@ export default function Navbar() {
             </button>
 
             {/* ── Desktop Nav Links ── */}
-            <div className="hidden md:flex items-center gap-0.5 lg:gap-1">
+            <div className="hidden 2xl:flex flex-1 items-center justify-center gap-1">
               {[
                 { path: '/', label: 'หน้าแรก' },
                 { path: '/plan/new', label: '🗺️ วางแผนเที่ยว' },
@@ -137,7 +137,7 @@ export default function Navbar() {
                   key={item.path}
                   onClick={() => navigate(item.path)}
                   className={`
-                    px-3 py-2 rounded-xl text-sm font-semibold transition-all duration-200
+                    whitespace-nowrap px-2.5 py-2 rounded-xl text-sm font-semibold transition-all duration-200
                     ${isActive(item.path)
                       ? 'text-orange-600 bg-orange-50 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/80'
@@ -150,11 +150,11 @@ export default function Navbar() {
             </div>
 
             {/* ── Right Actions ── */}
-            <div className="flex items-center gap-2 sm:gap-2.5">
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
 
               <button
                 onClick={() => navigate('/merchant')}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50"
+                className="hidden 2xl:inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50"
               >
                 🏪 <span className="hidden lg:inline">ร้านค้า</span>
               </button>
@@ -163,7 +163,7 @@ export default function Navbar() {
               <button
                 onClick={() => navigate('/profile')}
                 title={`${points} แต้ม = ${points * 2} บาท`}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 hover:shadow-md"
+                className="flex shrink-0 items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 hover:shadow-md"
                 style={{
                   background: 'linear-gradient(135deg,#fef3c7,#fde68a)',
                   color: '#92400e',
@@ -179,7 +179,7 @@ export default function Navbar() {
               <button
                 onClick={() => navigate('/profile')}
                 className={`
-                  hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all
+                  hidden 2xl:flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all
                   ${isActive('/profile')
                     ? 'text-white shadow-md'
                     : 'text-slate-700 border border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50'
@@ -203,7 +203,7 @@ export default function Navbar() {
                 <button
                   onClick={handleLogout}
                   title="ออกจากระบบ / สลับบัญชี"
-                  className="hidden lg:flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-all text-xs"
+                  className="hidden 2xl:flex items-center justify-center w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 border border-slate-200 transition-all text-xs"
                 >
                   🚪
                 </button>
@@ -212,7 +212,7 @@ export default function Navbar() {
               {/* CTA Button — desktop */}
               <button
                 onClick={() => navigate('/plan/new')}
-                className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-bold text-white transition-all duration-200 active:scale-95"
+                className="hidden 2xl:inline-flex items-center gap-1.5 whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold text-white transition-all duration-200 active:scale-95"
                 style={{
                   background: 'linear-gradient(135deg,#f97316,#f59e0b)',
                   boxShadow: '0 4px 16px -4px rgba(249,115,22,0.45)',
@@ -232,8 +232,9 @@ export default function Navbar() {
               {/* Mobile hamburger */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden btn-icon"
+                className="2xl:hidden btn-icon"
                 aria-label={mobileMenuOpen ? 'ปิดเมนู' : 'เปิดเมนู'}
+                aria-expanded={mobileMenuOpen}
               >
                 <span className="text-slate-700 text-lg leading-none">
                   {mobileMenuOpen ? '✕' : '☰'}
@@ -246,15 +247,14 @@ export default function Navbar() {
         {/* ── Mobile Dropdown Menu ── */}
         {mobileMenuOpen && (
           <div
-            className="md:hidden animate-slide-down"
+            className="2xl:hidden absolute right-4 top-full z-50 max-h-[calc(100dvh-5rem)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto animate-slide-down rounded-2xl border border-orange-100"
             style={{
               background: 'rgba(255,255,255,0.98)',
               backdropFilter: 'blur(24px)',
-              borderTop: '1px solid rgba(249,115,22,0.1)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
             }}
           >
-            <div className="px-5 py-4 flex flex-col gap-2">
+            <div className="px-4 py-4 flex flex-col gap-2">
               {/* User greeting */}
               {userAuth && (
                 <div
