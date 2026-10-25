@@ -9,7 +9,7 @@ const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'herit
 const CHALLENGE_STYLES = new Set(['foodie', 'challenge', 'night']);
 const DEMO_SHOP_CATEGORIES = ['cafe', 'food', 'photo', 'dessert', 'activity', 'food'];
 
-function createDemoDestinationShops({ districtId, districtName, startLat, startLng, budget }) {
+async function createDemoDestinationShops({ districtId, districtName, startLat, startLng, budget }) {
   if (
     typeof districtId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(districtId) ||
     typeof districtName !== 'string' || !districtName.trim() || districtName.length > 120 ||
@@ -43,20 +43,26 @@ function createDemoDestinationShops({ districtId, districtName, startLat, startL
     return row;
   });
 
-  const insertDemoShop = db.prepare(`
+  const insertDemoShop = `
     INSERT INTO shops
       (id, name, district, category, lat, lng, avgPrice, tagsJson, recommendedMenu,
        couponJson, openFrom, openTo, durationMin, missionJson, isDemo)
     VALUES
-      (@id, @name, @district, @category, @lat, @lng, @avgPrice, @tagsJson, @recommendedMenu,
-       @couponJson, @openFrom, @openTo, @durationMin, @missionJson, 1)
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(id) DO UPDATE SET
       name=excluded.name, district=excluded.district, category=excluded.category,
       lat=excluded.lat, lng=excluded.lng, avgPrice=excluded.avgPrice,
       tagsJson=excluded.tagsJson, recommendedMenu=excluded.recommendedMenu,
       openFrom=excluded.openFrom, openTo=excluded.openTo, isDemo=1
-  `);
-  db.transaction((shops) => shops.forEach((shop) => insertDemoShop.run(shop)))(rows);
+  `;
+  await db.transaction(async () => {
+    for (const shop of rows) {
+      await db.run(insertDemoShop,
+        shop.id, shop.name, shop.district, shop.category, shop.lat, shop.lng, shop.avgPrice,
+        shop.tagsJson, shop.recommendedMenu, shop.couponJson, shop.openFrom, shop.openTo,
+        shop.durationMin, shop.missionJson);
+    }
+  });
   return rows.map((row) => ({ ...row, isDemo: 1 }));
 }
 
@@ -81,7 +87,7 @@ const serializeShop = (row) => ({
  * POST /api/plans/generate
  * Contract-compliant AI planner endpoint reading from Person B's SQLite shops table
  */
-router.post('/generate', (req, res) => {
+router.post('/generate', async (req, res, next) => {
   try {
     const {
       districtId, districtName, provinceId, provinceName,
@@ -98,9 +104,9 @@ router.post('/generate', (req, res) => {
 
     const rows = districtId
       ? DISTRICTS[districtId]
-        ? db.prepare('SELECT * FROM shops WHERE district = ? AND isDemo = 0').all(DISTRICTS[districtId])
+        ? await db.all('SELECT * FROM shops WHERE district = ? AND isDemo = 0', DISTRICTS[districtId])
         : []
-      : db.prepare('SELECT * FROM shops WHERE isDemo = 0').all();
+      : await db.all('SELECT * FROM shops WHERE isDemo = 0');
 
     const shops = rows.map(serializeShop);
     const planOptions = {
@@ -116,7 +122,7 @@ router.post('/generate', (req, res) => {
     let result = generatePlan(shops, planOptions);
     let demoGenerated = false;
     if (districtId && result.plan?.items.length < 3) {
-      const demoShops = createDemoDestinationShops({
+      const demoShops = await createDemoDestinationShops({
         districtId,
         districtName: districtName || DISTRICTS[districtId] || 'ย่านที่เลือก',
         startLat: planOptions.startLat,
@@ -154,7 +160,7 @@ router.post('/generate', (req, res) => {
     });
   } catch (error) {
     console.error('[Error POST /api/plans/generate]:', error);
-    return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการสร้างแผนท่องเที่ยว' });
+    return next(error);
   }
 });
 

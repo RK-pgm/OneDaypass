@@ -15,12 +15,22 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use('/uploads', express.static(uploadsDir));
 
-app.get('/api/health', (_req, res) => {
+const ready = db.init().then(async () => {
+  if (!await db.get('SELECT 1 FROM shops LIMIT 1')) {
+    await seedShops();
+  }
+});
+
+app.use((_req, _res, next) => {
+  ready.then(() => next(), next);
+});
+
+app.get('/api/health', async (_req, res, next) => {
   try {
-    db.prepare('SELECT 1').get();
-    res.json({ ok: true, service: 'daypass-api', database: 'connected' });
+    await db.get('SELECT 1');
+    res.json({ ok: true, service: 'daypass-api', database: db.isPostgres ? 'postgres' : 'sqlite' });
   } catch (error) {
-    res.status(503).json({ error: 'ฐานข้อมูลยังไม่พร้อมใช้งาน' });
+    next(error);
   }
 });
 
@@ -40,10 +50,6 @@ for (const [mountPath, router] of mounts) {
   app.use(mountPath, router);
 }
 
-if (!db.prepare('SELECT 1 FROM shops LIMIT 1').get()) {
-  seedShops();
-}
-
 app.use((err, _req, res, _next) => {
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
     return res.status(400).json({ error: 'รูปแบบ JSON ไม่ถูกต้อง' });
@@ -58,8 +64,7 @@ const server = app.listen(port, () => {
 
 function shutdown() {
   server.close(() => {
-    db.close();
-    process.exit(0);
+    db.close().finally(() => process.exit(0));
   });
 }
 process.on('SIGINT', shutdown);

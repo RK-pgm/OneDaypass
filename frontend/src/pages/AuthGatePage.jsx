@@ -9,7 +9,7 @@ import {
   getAdministrativeDistricts,
   getAdministrativeSubdistricts,
 } from '../data/locations';
-import { addPoints, getDeviceId, loginAccount, registerAccount } from '../api';
+import { addPoints, getDeviceId, loginAccount, registerAccount, socialLoginAccount } from '../api';
 import { encodeProfilePhoto } from '../utils/profilePhoto';
 
 function getSavedAccounts() {
@@ -67,6 +67,10 @@ export default function AuthGatePage({ onAuthenticated }) {
   // UI status states
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [socialLoading, setSocialLoading] = useState('');
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [customGoogleName, setCustomGoogleName] = useState('');
+  const [customGoogleEmail, setCustomGoogleEmail] = useState('');
 
   // GPS state
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -347,6 +351,57 @@ export default function AuthGatePage({ onAuthenticated }) {
     completeAuthAndEnter(demoAuth, userProfile);
   }
 
+  async function handleSocialLogin(provider, customData = null) {
+    setError('');
+    setSocialLoading(provider);
+    setSubmitting(true);
+    try {
+      let payload;
+      if (provider === 'google') {
+        const email = customData?.email?.trim().toLowerCase() || 'somchai.traveler@gmail.com';
+        const name = customData?.name?.trim() || 'สมชาย ใจดี';
+        payload = {
+          provider: 'google',
+          providerId: `google_${email}`,
+          email,
+          name,
+          avatar: '/mascot/nong-pass-guide.jpg',
+        };
+      } else {
+        payload = {
+          provider: 'line',
+          providerId: `line_${Date.now()}`,
+          email: 'linetraveler@line.me',
+          name: 'นักเดินทาง LINE',
+          avatar: '/mascot/nong-pass-wave.jpg',
+        };
+      }
+
+      const { account: authData } = await socialLoginAccount(payload, getDeviceId());
+      const userProfile = {
+        nickname: authData.nickname,
+        fullName: authData.fullName,
+        phoneOrEmail: authData.phoneOrEmail,
+        email: authData.email,
+        dateOfBirth: authData.dateOfBirth,
+        currentAddress: authData.currentAddress,
+        profilePhoto: authData.profilePhoto,
+        province: authData.province,
+        district: authData.amphoe,
+        tambon: authData.tambon,
+        lat: authData.lat || 13.7313,
+        lng: authData.lng || 100.5105,
+        homeBaseName: `${authData.provinceName || 'กรุงเทพมหานคร'} - ${authData.amphoeName || 'สัมพันธวงศ์'}`,
+      };
+
+      completeAuthAndEnter(authData, userProfile);
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Social Account ได้');
+      setSubmitting(false);
+      setSocialLoading('');
+    }
+  }
+
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center p-3 sm:p-6 lg:p-8 overflow-x-hidden font-sans bg-gradient-to-br from-amber-50 via-sky-50 to-orange-100/60">
       {/* Decorative ambient elements */}
@@ -498,6 +553,152 @@ export default function AuthGatePage({ onAuthenticated }) {
               </div>
             )}
 
+            {/* ── FAST 1-CLICK SOCIAL LOGIN (Google & LINE) ── */}
+            <div className="mt-5 p-4 rounded-3xl bg-gradient-to-br from-amber-50/70 via-orange-50/40 to-emerald-50/50 border border-amber-200/90 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <span className="text-amber-500 animate-pulse">⚡</span> เข้าใช้งานด่วน 1 คลิก (สะดวกรวดเร็ว ไม่ต้องจำรหัสผ่าน)
+                </span>
+                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-500 text-white shadow-xs">
+                  ✨ แนะนำ
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {/* Google Button */}
+                <button
+                  type="button"
+                  id="btn-social-google"
+                  onClick={() => handleSocialLogin('google')}
+                  disabled={submitting}
+                  className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group"
+                >
+                  <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>{socialLoading === 'google' ? 'กำลังเชื่อมต่อ Google...' : 'เข้าสู่ระบบด้วย Google'}</span>
+                </button>
+
+                {/* LINE Button */}
+                <button
+                  type="button"
+                  id="btn-social-line"
+                  onClick={() => handleSocialLogin('line')}
+                  disabled={submitting}
+                  className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group"
+                  style={{ boxShadow: '0 4px 14px rgba(6,199,85,0.25)' }}
+                >
+                  <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63h2.386c.349 0 .63.285.63.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.27.173-.51.43-.595.06-.023.136-.033.194-.033.195 0 .375.104.495.254l2.462 3.33V8.108c0-.345.282-.63.63-.63.345 0 .626.285.626.63v4.771zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.627-.63.349 0 .631.285.631.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.281.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314" />
+                  </svg>
+                  <span>{socialLoading === 'line' ? 'กำลังเชื่อมต่อ LINE...' : 'เข้าสู่ระบบด้วย LINE'}</span>
+                </button>
+              </div>
+
+              {/* Quick option to choose custom Google name/email */}
+              <div className="mt-2.5 pt-2 border-t border-amber-200/50 flex items-center justify-between text-[11px] text-slate-500">
+                <span>แตะปุ่มเพื่อเข้าใช้งานทันทีใน 1 วิ</span>
+                <button
+                  type="button"
+                  id="btn-custom-google-toggle"
+                  onClick={() => setShowGoogleModal(true)}
+                  className="font-bold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer"
+                >
+                  เลือกหรือกรอก Gmail อื่น ⚙️
+                </button>
+              </div>
+            </div>
+
+            {/* Google Custom Account Modal */}
+            {showGoogleModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                      <h3 className="font-black text-slate-900 text-sm">เข้าสู่ระบบด้วย Google</h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleModal(false)}
+                      className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <p className="text-xs text-slate-600">
+                    กรอกชื่อและอีเมล Gmail ที่คุณต้องการใช้เข้าสู่ระบบ:
+                  </p>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">ชื่อที่แสดง</label>
+                      <input
+                        type="text"
+                        value={customGoogleName}
+                        onChange={(e) => setCustomGoogleName(e.target.value)}
+                        placeholder="เช่น สมชาย ใจดี"
+                        className="input-field py-2 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">อีเมล Gmail</label>
+                      <input
+                        type="email"
+                        value={customGoogleEmail}
+                        onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                        placeholder="yourname@gmail.com"
+                        className="input-field py-2 text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowGoogleModal(false)}
+                      className="flex-1 py-2 text-xs font-bold text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleSocialLogin('google', {
+                          name: customGoogleName || 'Google User',
+                          email: customGoogleEmail || 'somchai.traveler@gmail.com',
+                        });
+                      }}
+                      className="flex-1 py-2 text-xs font-bold text-white rounded-xl bg-brand-500 hover:bg-brand-600 shadow-sm cursor-pointer"
+                    >
+                      เข้าสู่ระบบทันที
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Divider */}
+            <div className="relative my-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-3 text-slate-400 font-semibold">
+                  หรือกรอกแบบฟอร์มด้านล่าง
+                </span>
+              </div>
+            </div>
+
             {/* ──────── TAB 1: REGISTER ──────── */}
             {activeTab === 'register' && (
               <form onSubmit={handleRegister} className="mt-5 space-y-4">
@@ -618,7 +819,31 @@ export default function AuthGatePage({ onAuthenticated }) {
                           className="block min-w-0 w-full text-[11px] text-slate-600 file:mr-2 file:rounded-lg file:border-0 file:bg-white file:px-2.5 file:py-2 file:text-[11px] file:font-bold file:text-brand-700"
                         />
                       </div>
-                      <p className="text-[10px] text-slate-500 mt-1">เลือก JPG, PNG หรือ WebP; ระบบย่อรูปก่อนบันทึก</p>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="text-[10px] text-slate-500 font-semibold">หรือเลือกรูปมาสคอต:</span>
+                        <button
+                          type="button"
+                          onClick={() => setProfilePhoto('/mascot/nong-pass-wave.jpg')}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition-all cursor-pointer ${
+                            profilePhoto === '/mascot/nong-pass-wave.jpg'
+                              ? 'bg-amber-100 text-amber-900 border-amber-300 ring-2 ring-amber-400/50'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          🐻 น้องพาส
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfilePhoto('/mascot/nong-pass-guide.jpg')}
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold border transition-all cursor-pointer ${
+                            profilePhoto === '/mascot/nong-pass-guide.jpg'
+                              ? 'bg-sky-100 text-sky-900 border-sky-300 ring-2 ring-sky-400/50'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          🧭 น้องพาสไกด์
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div>

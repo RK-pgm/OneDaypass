@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getDeviceId, getPoints, getPassHistory, resetDeviceId, updateAccountProfile } from '../api';
+import { getDeviceId, getPoints, getPassHistory, logoutAccount, updateAccountProfile } from '../api';
 import {
   PROVINCES,
   REGIONS,
@@ -780,9 +780,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={() => {
-                  localStorage.removeItem('daypass_user_auth');
-                  resetDeviceId();
-                  window.dispatchEvent(new Event('daypass_auth_changed'));
+                  logoutAccount();
                   navigate('/', { replace: true });
                 }}
                 className="text-xs text-rose-600 hover:text-rose-800 font-bold hover:underline py-2"

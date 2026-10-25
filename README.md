@@ -16,10 +16,10 @@
 ## 🏗️ โครงสร้างโฟลเดอร์ (Project Structure)
 ```
 daypass/
-├── backend/                  # Node.js + Express + SQLite Backend API
+├── backend/                  # Node.js + Express; SQLite locally, PostgreSQL on Vercel
 │   ├── src/
 │   │   ├── server.js         # จุดเริ่มต้นเซิร์ฟเวอร์ & Mount API routes
-│   │   ├── db.js             # จัดการ SQLite Schema & Auto-seed
+│   │   ├── db.js             # จัดการฐานข้อมูลและ migration
 │   │   ├── lib/
 │   │   │   └── haversine.js  # สูตรคำนวณระยะทาง GPS (กม. / ม.)
 │   │   └── routes/           # Router แยกตามโมดูล API Contract
@@ -73,6 +73,16 @@ npm install
 npm run dev
 ```
 เปิดเบราว์เซอร์ไปที่ `http://localhost:5173/`
+
+### ฐานข้อมูล Production บน Vercel
+
+SQLite ใช้สำหรับพัฒนาในเครื่องเท่านั้น ข้อมูลใน filesystem ของ Vercel เป็นพื้นที่ชั่วคราว จึงไม่เหมาะกับบัญชี คำสั่งซื้อ หรือพาสที่ต้องอยู่ข้ามการเริ่มระบบใหม่
+
+1. สร้าง Supabase project แล้วคัดลอก connection string แบบ **Transaction pooler** จาก Project Settings → Database
+2. เพิ่มค่า `DATABASE_URL` ใน Vercel Project Settings → Environment Variables สำหรับ Production และ Preview โดยไม่ใส่ connection string ลงใน Git หรือส่งผ่านแชต
+3. Redeploy แอป Backend; ระบบจะสร้างตารางและเติมข้อมูลร้านตัวอย่างให้อัตโนมัติเมื่อฐานข้อมูลยังว่าง
+
+ข้อมูลที่เคยอยู่ใน SQLite ชั่วคราวบน Vercel ไม่สามารถย้ายหรือกู้คืนจากการ deploy ได้โดยอัตโนมัติ ผู้ใช้ต้องลงทะเบียนใหม่หากบัญชีเดิมไม่อยู่แล้ว
 
 ---
 

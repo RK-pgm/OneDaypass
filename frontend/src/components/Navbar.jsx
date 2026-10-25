@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { getDeviceId, getPoints, resetDeviceId } from '../api';
+import { getDeviceId, getPoints, logoutAccount } from '../api';
 
 const NAV_ITEMS = [
   { path: '/', label: 'หน้าแรก', icon: '🏠', mobileLabel: 'หน้าแรก' },
@@ -53,9 +53,7 @@ export default function Navbar() {
   }
 
   function handleLogout() {
-    localStorage.removeItem('daypass_user_auth');
-    resetDeviceId();
-    window.dispatchEvent(new Event('daypass_auth_changed'));
+    logoutAccount();
     navigate('/', { replace: true });
   }
 
