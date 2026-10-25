@@ -4,6 +4,7 @@ const router = express.Router();
 const db = require('../db');
 const { generatePlan } = require('../lib/planner');
 const { DISTRICTS } = require('../lib/districts');
+const { PASS_PACKAGE_CONFIG } = require('../lib/passPackages');
 
 const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'heritage', 'challenge', 'night']);
 const CHALLENGE_STYLES = new Set(['foodie', 'challenge', 'night']);
@@ -91,9 +92,13 @@ router.post('/generate', async (req, res, next) => {
   try {
     const {
       districtId, districtName, provinceId, provinceName,
-      budget, style, radiusKm, startLat, startLng, people, startTime
+      budget, style, radiusKm, startLat, startLng, people, startTime, passPackageId
     } = req.body || {};
 
+    const requestedPackage = passPackageId ? PASS_PACKAGE_CONFIG[passPackageId] : null;
+    if (passPackageId && !requestedPackage) {
+      return res.status(400).json({ error: 'รูปแบบพาสไม่ถูกต้อง กรุณาเลือกพาสที่มีในระบบ' });
+    }
     const numBudget = Number(budget);
     if (!Number.isFinite(numBudget) || numBudget <= 0) {
       return res.status(400).json({ error: 'กรุณาระบุงบประมาณให้ถูกต้อง' });
@@ -132,11 +137,14 @@ router.post('/generate', async (req, res, next) => {
       startTime: planStartTime,
       endTime: planEndTime,
       maxDurationMin: endMinutes - startMinutes,
-      districtName: districtId ? (DISTRICTS[districtId] || districtName) : undefined
+      districtName: districtId ? (DISTRICTS[districtId] || districtName) : undefined,
+      targetStops: requestedPackage?.placesCount,
+      requiredCoupons: requestedPackage?.couponCount,
+      requiredMissions: requestedPackage?.missionCount,
     };
     let result = generatePlan(shops, planOptions);
     let demoGenerated = false;
-    if (districtId && result.plan?.items.length < 3) {
+    if (!requestedPackage && districtId && result.plan?.items.length < 3) {
       const demoShops = await createDemoDestinationShops({
         districtId,
         districtName: districtName || DISTRICTS[districtId] || 'ย่านที่เลือก',
@@ -150,6 +158,13 @@ router.post('/generate', async (req, res, next) => {
 
     if (!result.plan || result.plan.items.length === 0) {
       return res.status(404).json({ error: result.warning || 'ไม่พบสถานที่ท่องเที่ยวในเงื่อนไขที่กำหนด' });
+    }
+    if (requestedPackage && (
+      result.plan.items.length !== requestedPackage.placesCount ||
+      result.plan.items.filter((item) => item.coupon).length < requestedPackage.couponCount ||
+      result.plan.items.filter((item) => item.mission).length < requestedPackage.missionCount
+    )) {
+      return res.status(422).json({ error: 'แผนนี้มีร้านที่ร่วมรายการไม่พอสำหรับพาส 6 จุดและคูปอง 2 ใบ ลองเลือกย่านที่มีร้านร่วมรายการ เพิ่มงบประมาณหรือรัศมี หรือปรับเวลาเที่ยว' });
     }
 
     result.plan.districtId = districtId || null;

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { createOrder, getDeviceId } from '../api';
+import { createOrder, generatePlan, getDeviceId } from '../api';
 
 // Fix Leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -139,7 +139,9 @@ export default function PlanResultPage() {
   const [shareMessage, setShareMessage] = useState('');
   const [error, setError] = useState('');
   const [selectedPackageId, setSelectedPackageId] = useState('single');
+  const [packageLoading, setPackageLoading] = useState(false);
   const mapRef = useRef(null);
+  const originalPlanRef = useRef(plan);
 
   useEffect(() => {
     if (!plan) navigate('/plan/new', { replace: true });
@@ -159,6 +161,17 @@ export default function PlanResultPage() {
       perks: [`แผนเที่ยว ${plan.items.length} จุดตามแผน`, `คูปองที่แสดงในแผน ${plan.items.filter((item) => item.coupon).length} รายการ (ถ้ามี)`, 'มิชชั่นและแต้มเป็นข้อมูลตัวอย่าง'],
       transitAdvice: 'ไม่รวมค่าเดินทาง และไม่มีสิทธิ์เดินทางหรือบริการพิเศษรวมอยู่',
     },
+    {
+      id: 'explorer',
+      title: 'พาสเที่ยว 6 จุด (ต้นแบบ)',
+      badge: 'แผนเที่ยว 6 จุด',
+      badgeColor: 'bg-orange-50 text-orange-700 border-orange-200',
+      icon: '🎫',
+      pricePerPerson: 299,
+      desc: 'เพิ่มแผนเที่ยวให้ครบ 6 จุด พร้อมคูปองจากร้านจริง 2 ใบต่อคน มิชชั่นสะสมแต้ม และแต้มจากการซื้อพาส',
+      perks: ['แผนเที่ยวครบ 6 จุด', 'คูปองจากร้านที่ร่วมรายการ 2 ใบ/คนหลังซื้อ', 'มีมิชชั่นและรับแต้มจากการซื้อพาส'],
+      transitAdvice: 'ไม่รวมค่าเดินทาง และไม่มีสิทธิ์เดินทางหรือบริการพิเศษรวมอยู่',
+    },
   ];
   const selectedPackage = PASS_PACKAGES.find((p) => p.id === selectedPackageId) || PASS_PACKAGES[0];
   const totalCost = selectedPackage.pricePerPerson * people;
@@ -173,6 +186,53 @@ export default function PlanResultPage() {
     (sum, item) => sum + (item.durationMin || 45) + walkingMinutes(item.distanceFromPrevKm || 0),
     0
   );
+
+  async function handleSelectPackage(packageId) {
+    if (packageId === selectedPackageId || packageLoading) return;
+    setError('');
+    if (packageId === 'single') {
+      setPlan(originalPlanRef.current);
+      sessionStorage.setItem('daypass_plan', JSON.stringify(originalPlanRef.current));
+      setSelectedPackageId(packageId);
+      return;
+    }
+
+    setPackageLoading(true);
+    try {
+      let request = {};
+      try {
+        request = JSON.parse(sessionStorage.getItem('daypass_plan_request') || '{}');
+      } catch {
+        request = {};
+      }
+      const result = await generatePlan({
+        ...request,
+        districtId: request.districtId || plan.districtId,
+        districtName: request.districtName || plan.districtName,
+        provinceId: request.provinceId || plan.provinceId,
+        provinceName: request.provinceName || plan.provinceName,
+        style: request.style || plan.style,
+        startLat: Number.isFinite(request.startLat) ? request.startLat : plan.items[0].lat,
+        startLng: Number.isFinite(request.startLng) ? request.startLng : plan.items[0].lng,
+        radiusKm: request.radiusKm || 25,
+        budget: request.budget || plan.estTripExpensePerPerson || 299,
+        startTime: request.startTime || plan.startTime || '10:00',
+        endTime: request.endTime || plan.endTime || '18:00',
+        people,
+        passPackageId: packageId,
+      });
+      if (!result.plan || result.plan.items.length !== 6) {
+        throw new Error(result.warning || 'จัดแผน 6 จุดสำหรับพาสนี้ไม่สำเร็จ');
+      }
+      setPlan(result.plan);
+      sessionStorage.setItem('daypass_plan', JSON.stringify(result.plan));
+      setSelectedPackageId(packageId);
+    } catch (err) {
+      setError(err.message || 'สร้างแผนพาส 6 จุดไม่สำเร็จ');
+    } finally {
+      setPackageLoading(false);
+    }
+  }
 
   function optimizeItinerary() {
     const request = JSON.parse(sessionStorage.getItem('daypass_plan_request') || '{}');
@@ -240,6 +300,7 @@ export default function PlanResultPage() {
 
     const updatedPlan = { ...plan, items };
     setPlan(updatedPlan);
+    if (selectedPackageId === 'single') originalPlanRef.current = updatedPlan;
     sessionStorage.setItem('daypass_plan', JSON.stringify(updatedPlan));
     const savedKm = originalDistance - optimizedDistance;
     setOptimizationMessage(`จัดเส้นทางใหม่แล้ว ลดระยะเดินประมาณ ${savedKm.toFixed(1)} กม. โดยคงสถานที่และงบเดิม`);
@@ -563,8 +624,8 @@ export default function PlanResultPage() {
                   return (
                     <div
                       key={pkg.id}
-                      onClick={() => setSelectedPackageId(pkg.id)}
-                      className={`p-4 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between relative ${
+                      onClick={() => handleSelectPackage(pkg.id)}
+                      className={`p-4 rounded-2xl border-2 ${packageLoading ? 'cursor-wait opacity-70' : 'cursor-pointer'} transition-all flex flex-col justify-between relative ${
                         isSelected
                           ? 'border-brand-500 bg-gradient-to-br from-brand-50/60 via-white to-amber-50/40 shadow-md ring-2 ring-brand-500/20'
                           : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/70'

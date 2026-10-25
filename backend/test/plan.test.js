@@ -46,6 +46,23 @@ console.log(`  ✅ Title: ${res2.plan.title}`);
 console.log(`  ✅ Stops: ${res2.plan.items.length} items`);
 
 // -------------------------------------------------------------
+// Test Case 2b: แผนพาส 6 จุด พร้อมคูปองและมิชชั่นขั้นต่ำ
+// -------------------------------------------------------------
+const explorerPlan = generatePlan(sampleShops, {
+  budget: 2000,
+  style: 'chill',
+  radiusKm: 3,
+  startTime: '09:00',
+  targetStops: 6,
+  requiredCoupons: 2,
+  requiredMissions: 1,
+});
+assert.strictEqual(explorerPlan.plan.items.length, 6, 'Explorer plan must contain exactly 6 stops');
+assert.strictEqual(explorerPlan.plan.items.filter((item) => item.coupon).length, 2, 'Explorer plan must contain exactly 2 coupons');
+assert(explorerPlan.plan.items.some((item) => item.mission), 'Explorer plan must contain a mission');
+console.log('  ✅ Explorer plan contains 6 stops, 2 coupons, and missions');
+
+// -------------------------------------------------------------
 // Test Case 3: งบน้อยมาก (Budget = 150 บาท)
 // -------------------------------------------------------------
 console.log('\n--- Test Case 3: Ultra-Low Budget (฿150) ---');
