@@ -152,6 +152,13 @@ export default function Navbar() {
             {/* ── Right Actions ── */}
             <div className="flex items-center gap-2 sm:gap-2.5">
 
+              <button
+                onClick={() => navigate('/merchant')}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-orange-300 hover:bg-orange-50"
+              >
+                🏪 <span className="hidden lg:inline">ร้านค้า</span>
+              </button>
+
               {/* Points pill */}
               <button
                 onClick={() => navigate('/profile')}
@@ -278,6 +285,7 @@ export default function Navbar() {
                 { path: '/quiz', label: '🧭 ทำควิซหาสไตล์' },
                 { path: '/history', label: '📜 ประวัติการซื้อพาส' },
                 { path: '/profile', label: '👤 โปรไฟล์ & แต้มสะสม' },
+                { path: '/merchant', label: '🏪 ศูนย์ร้านค้า' },
               ].map((item) => (
                 <button
                   key={item.path}

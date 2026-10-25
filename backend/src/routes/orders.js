@@ -47,8 +47,14 @@ async function findShopsForPlan(items) {
       estCost: shop.avgPrice,
       durationMin: shop.durationMin,
       distanceFromPrevKm: Number.isFinite(item.distanceFromPrevKm) ? item.distanceFromPrevKm : 0,
-      coupon: coupon ? { id: `c-${shop.id}`, title: coupon.title, valueText: coupon.valueText || '' } : null,
-      mission: mission ? { id: `m-${shop.id}`, title: mission.title, points: mission.points || 5 } : null
+      coupon: coupon ? {
+        id: `c-${shop.id}`,
+        title: coupon.title,
+        valueText: coupon.valueText || '',
+        isDemo: Boolean(shop.isDemo),
+      } : null,
+      mission: mission ? { id: `m-${shop.id}`, title: mission.title, points: mission.points || 5 } : null,
+      isDemo: Boolean(shop.isDemo)
     };
   });
 
@@ -81,10 +87,10 @@ router.post('/', async (req, res, next) => {
     if (!pkg) return res.status(400).json({ error: 'รูปแบบพาสไม่ถูกต้อง กรุณาเลือกพาสที่มีในระบบ' });
     if (pkg.placesCount && (
       trustedPlan.items.length !== pkg.placesCount ||
-      trustedPlan.items.filter((item) => item.coupon).length < pkg.couponCount ||
-      trustedPlan.items.filter((item) => item.mission).length < pkg.missionCount
+      trustedPlan.items.filter((item) => item.coupon).length < (pkg.couponCount || 0) ||
+      trustedPlan.items.filter((item) => item.mission).length < (pkg.missionCount || 0)
     )) {
-      return res.status(400).json({ error: 'แผนไม่ครบสิทธิ์ของพาสนี้ กรุณาสร้างแผน 6 จุดที่มีคูปอง 2 ใบและมิชชั่น' });
+      return res.status(400).json({ error: `แผนไม่ครบสิทธิ์ของพาสนี้ กรุณาสร้างแผน ${pkg.placesCount} จุดและสิทธิประโยชน์ตามแพ็กเกจ` });
     }
     if (pkg.couponCount) {
       let couponsLeft = pkg.couponCount;

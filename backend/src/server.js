@@ -45,6 +45,7 @@ app.get('/api/health', async (_req, res, next) => {
 
 const mounts = [
   ['/api/auth', require('./routes/auth')],
+  ['/api/merchant', require('./routes/merchant')],
   ['/api/shops', require('./routes/shops')],
   ['/api/orders', require('./routes/orders')],
   ['/api/passes', require('./routes/passes')],

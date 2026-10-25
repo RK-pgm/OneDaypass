@@ -52,7 +52,11 @@ async function apiFetch(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...headers },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(data.error || `HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 
@@ -94,6 +98,71 @@ export async function googleLoginAccount(googleAuthPayload, previousDeviceId) {
     method: 'POST',
     body: JSON.stringify({ ...googleAuthPayload, previousDeviceId }),
   });
+}
+
+const MERCHANT_SESSION_KEY = 'daypass_merchant_session';
+
+async function merchantFetch(path, options = {}) {
+  const token = localStorage.getItem(MERCHANT_SESSION_KEY);
+  try {
+    return await apiFetch(`/merchant${path}`, {
+      ...options,
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+    });
+  } catch (error) {
+    if (error.status === 401) localStorage.removeItem(MERCHANT_SESSION_KEY);
+    throw error;
+  }
+}
+
+export function hasMerchantSession() {
+  return Boolean(localStorage.getItem(MERCHANT_SESSION_KEY));
+}
+
+function saveMerchantSession(result) {
+  localStorage.setItem(MERCHANT_SESSION_KEY, result.token);
+  return result;
+}
+
+export async function getEligibleMerchantShops() {
+  return apiFetch('/merchant/eligible-shops');
+}
+
+export async function registerMerchant(merchant) {
+  return saveMerchantSession(await apiFetch('/merchant/register', {
+    method: 'POST',
+    body: JSON.stringify(merchant),
+  }));
+}
+
+export async function loginMerchant(shopName, password) {
+  return saveMerchantSession(await apiFetch('/merchant/login', {
+    method: 'POST',
+    body: JSON.stringify({ shopName, password }),
+  }));
+}
+
+export async function getMerchantSession() {
+  return merchantFetch('/me');
+}
+
+export async function lookupMerchantPass(passCode) {
+  return merchantFetch('/passes/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ passCode }),
+  });
+}
+
+export async function redeemMerchantCoupon(couponId) {
+  return merchantFetch(`/coupons/${encodeURIComponent(couponId)}/redeem`, { method: 'POST' });
+}
+
+export async function logoutMerchant() {
+  try {
+    await merchantFetch('/logout', { method: 'POST' });
+  } finally {
+    localStorage.removeItem(MERCHANT_SESSION_KEY);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -427,8 +496,9 @@ export async function generatePlan(body) {
     const districtKey = body.districtId && DISTRICT_PLANS[body.districtId] ? body.districtId : 'taladnoi';
     let basePlan = DISTRICT_PLANS[districtKey];
 
-    // If destination has no static plan, generate authentic stops around coordinates
-    if (!DISTRICT_PLANS[body.districtId]) {
+    const isSyntheticDestination = !DISTRICT_PLANS[body.districtId];
+    // Destinations without curated plans use clearly labeled prototype stops.
+    if (isSyntheticDestination) {
       basePlan = {
         title: `ทริปท่องเที่ยว ${targetDest.name}`,
         items: [
@@ -509,12 +579,15 @@ export async function generatePlan(body) {
       return {
         ...item,
         time: timeStr,
+        ...(isSyntheticDestination ? { isDemo: true } : {}),
+        coupon: item.coupon ? { ...item.coupon, isDemo: true } : null,
       };
     });
     let planItems = adjustedItems;
-    if (body.passPackageId === 'explorer') {
+    const targetStops = body.passPackageId === 'explorer' ? 6 : body.passPackageId === 'single' ? 4 : null;
+    if (targetStops) {
       let extraCurrentMinutes = currentMinutes;
-      const extraItems = Array.from({ length: Math.max(0, 6 - adjustedItems.length) }, (_, index) => {
+      const extraItems = Array.from({ length: Math.max(0, targetStops - adjustedItems.length) }, (_, index) => {
         const previous = adjustedItems.at(-1);
         const order = adjustedItems.length + index + 1;
         const hour = Math.floor(extraCurrentMinutes / 60) % 24;
@@ -534,6 +607,7 @@ export async function generatePlan(body) {
           durationMin: 30,
           distanceFromPrevKm: 0.2,
           coupon: null,
+          isDemo: true,
           mission: index === 0 ? {
             id: `m-${targetDest.id}_demo_${order}`,
             title: `ภารกิจถ่ายรูปจุดแวะ ${order}`,
@@ -542,16 +616,38 @@ export async function generatePlan(body) {
         };
       });
       currentMinutes = extraCurrentMinutes;
-      const availableCoupons = adjustedItems.filter((item) => item.coupon).slice(0, 2);
-      if (availableCoupons.length < 2) {
-        throw new Error('แผนตัวอย่างนี้มีคูปองไม่พอสำหรับพาส 6 จุด');
-      }
-      const couponByShop = new Map(availableCoupons.map((item) => [item.shopId, item.coupon]));
-      planItems = [...adjustedItems, ...extraItems].slice(0, 6).map((item, index) => ({
+      planItems = [...adjustedItems, ...extraItems].slice(0, targetStops).map((item, index) => ({
         ...item,
         order: index + 1,
-        coupon: couponByShop.get(item.shopId) || null,
       }));
+      if (body.passPackageId === 'explorer') {
+        let couponCount = 0;
+        planItems = planItems.map((item) => {
+          if (item.coupon && couponCount < 2) {
+            couponCount += 1;
+            return item;
+          }
+          if (item.coupon) return { ...item, coupon: null };
+          if (couponCount >= 2) return item;
+          couponCount += 1;
+          return {
+            ...item,
+            isDemo: true,
+            coupon: {
+              id: `c-${item.shopId}-sample`,
+              title: 'คูปองตัวอย่าง (ไม่มีสิทธิ์ร้านค้าจริง)',
+              isDemo: true,
+            },
+          };
+        });
+        if (!planItems.some((item) => item.mission)) {
+          planItems[0] = {
+            ...planItems[0],
+            isDemo: true,
+            mission: { id: `m-${planItems[0].shopId}-sample`, title: 'ภารกิจตัวอย่าง', points: 5 },
+          };
+        }
+      }
     }
 
     const endH = Math.floor(currentMinutes / 60) % 24;
@@ -567,7 +663,7 @@ export async function generatePlan(body) {
 
     const generated = {
       ...basePlan,
-      title: body.passPackageId === 'explorer' ? `${basePlan.title} · แผนพาส 6 จุด` : basePlan.title,
+      title: targetStops ? `${basePlan.title} · แผนพาส ${targetStops} จุด` : basePlan.title,
       districtId: body.districtId || districtKey,
       districtName: targetDest?.name || basePlan.title,
       provinceId: body.provinceId || targetDest?.provinceId,
@@ -578,6 +674,7 @@ export async function generatePlan(body) {
       endTime: computedEndTime,
       tripDurationText: `${tripHours} ชม. ${tripRemainderMin > 0 ? `${tripRemainderMin} นาที` : ''}`,
       tripTotalHours: tripHours,
+      demoGenerated: isSyntheticDestination || planItems.some((item) => item.isDemo || item.coupon?.isDemo),
       items: planItems,
     };
     return { plan: generated };
@@ -682,7 +779,13 @@ export async function confirmOrder(orderId, slipImageName) {
       },
       coupons: (targetPlan.items || MOCK_PASS.plan.items)
         .filter((item) => item.coupon)
-        .map((item) => ({ id: item.coupon.id, shopId: item.shopId, title: item.coupon.title, used: false }))
+        .map((item) => ({
+          id: item.coupon.id,
+          shopId: item.shopId,
+          title: item.coupon.title,
+          used: false,
+          isDemo: Boolean(item.coupon.isDemo),
+        }))
         .flatMap((coupon) => targetPlan.selectedPackage?.id === 'explorer'
           ? Array.from({ length: order.people || 1 }, (_, index) => ({
             ...coupon,
@@ -868,6 +971,7 @@ export async function redeemCoupon(couponId, passId) {
     const pass = JSON.parse(localStorage.getItem(storageKey) || 'null') || JSON.parse(JSON.stringify(MOCK_PASS));
     const coupon = pass.coupons.find((item) => item.id === couponId);
     if (!coupon) throw new Error('ไม่พบคูปองในพาสนี้');
+    if (coupon.isDemo) throw new Error('คูปองตัวอย่างนี้ใช้สิทธิ์กับร้านค้าจริงไม่ได้');
     if (coupon.used) throw new Error('คูปองนี้ถูกใช้ไปแล้ว');
     const redeemedAt = new Date().toISOString();
     coupon.used = true;

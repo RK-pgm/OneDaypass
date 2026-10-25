@@ -10,7 +10,7 @@ const TRAVEL_STYLES = new Set(['chill', 'cafe', 'foodie', 'photo', 'art', 'herit
 const CHALLENGE_STYLES = new Set(['foodie', 'challenge', 'night']);
 const DEMO_SHOP_CATEGORIES = ['cafe', 'food', 'photo', 'dessert', 'activity', 'food'];
 
-async function createDemoDestinationShops({ districtId, districtName, startLat, startLng, budget }) {
+async function createDemoDestinationShops({ districtId, districtName, startLat, startLng, includeDemoBenefits = false }) {
   if (
     typeof districtId !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(districtId) ||
     typeof districtName !== 'string' || !districtName.trim() || districtName.length > 120 ||
@@ -19,7 +19,7 @@ async function createDemoDestinationShops({ districtId, districtName, startLat, 
   ) return null;
 
   const key = crypto.createHash('sha256')
-    .update(`${districtId}:${startLat}:${startLng}:${budget}`)
+    .update(`${districtId}:${startLat}:${startLng}:${includeDemoBenefits ? 'benefits' : 'stops'}`)
     .digest('hex')
     .slice(0, 16);
   const rows = DEMO_SHOP_CATEGORIES.map((category, index) => {
@@ -32,14 +32,21 @@ async function createDemoDestinationShops({ districtId, districtName, startLat, 
       category,
       lat: startLat + (index % 2 === 0 ? 1 : -1) * 0.0002 * (index + 1),
       lng: startLng + (index % 3 === 0 ? -1 : 1) * 0.0002 * (index + 1),
-      avgPrice: Math.floor(budget * [0.2, 0.25, 0, 0.1, 0.1, 0.15][index]),
+      avgPrice: 0,
       tagsJson: JSON.stringify(['chill', 'challenge']),
       recommendedMenu: 'จุดแวะตัวอย่างสำหรับจัดเส้นทางเดโม',
-      couponJson: null,
+      couponJson: includeDemoBenefits && index < 2
+        ? JSON.stringify({
+          title: `คูปองตัวอย่าง ${index + 1} (ไม่มีสิทธิ์ร้านค้าจริง)`,
+          valueText: 'สิทธิ์ตัวอย่างสำหรับทดลองระบบเท่านั้น',
+        })
+        : null,
       openFrom: '08:00',
       openTo: '21:00',
       durationMin: 40,
-      missionJson: null,
+      missionJson: includeDemoBenefits && index === 0
+        ? JSON.stringify({ title: 'ภารกิจตัวอย่าง (ไม่มีสิทธิ์ร้านค้าจริง)', points: 5 })
+        : null,
     };
     return row;
   });
@@ -54,6 +61,8 @@ async function createDemoDestinationShops({ districtId, districtName, startLat, 
       name=excluded.name, district=excluded.district, category=excluded.category,
       lat=excluded.lat, lng=excluded.lng, avgPrice=excluded.avgPrice,
       tagsJson=excluded.tagsJson, recommendedMenu=excluded.recommendedMenu,
+      couponJson=excluded.couponJson, durationMin=excluded.durationMin,
+      missionJson=excluded.missionJson,
       openFrom=excluded.openFrom, openTo=excluded.openTo, isDemo=1
   `;
   await db.transaction(async () => {
@@ -81,7 +90,8 @@ const serializeShop = (row) => ({
   openFrom: row.openFrom,
   openTo: row.openTo,
   durationMin: row.durationMin,
-  mission: row.missionJson ? JSON.parse(row.missionJson) : null
+  mission: row.missionJson ? JSON.parse(row.missionJson) : null,
+  isDemo: Boolean(row.isDemo)
 });
 
 /**
@@ -127,6 +137,8 @@ router.post('/generate', async (req, res, next) => {
       : await db.all('SELECT * FROM shops WHERE isDemo = 0');
 
     const shops = rows.map(serializeShop);
+    const requiredCoupons = requestedPackage?.couponCount || 0;
+    const requiredMissions = requestedPackage?.missionCount || 0;
     const planOptions = {
       budget: numBudget,
       style: CHALLENGE_STYLES.has(style) ? 'challenge' : 'chill',
@@ -139,21 +151,25 @@ router.post('/generate', async (req, res, next) => {
       maxDurationMin: endMinutes - startMinutes,
       districtName: districtId ? (DISTRICTS[districtId] || districtName) : undefined,
       targetStops: requestedPackage?.placesCount,
-      requiredCoupons: requestedPackage?.couponCount,
-      requiredMissions: requestedPackage?.missionCount,
+      requiredCoupons,
+      requiredMissions,
     };
     let result = generatePlan(shops, planOptions);
-    let demoGenerated = false;
-    if (!requestedPackage && districtId && result.plan?.items.length < 3) {
+    const packagePlanIsComplete = (plan) => plan &&
+      plan.items.length === requestedPackage?.placesCount &&
+      plan.items.filter((item) => item.coupon).length >= requiredCoupons &&
+      plan.items.filter((item) => item.mission).length >= requiredMissions;
+    const packageNeedsDemoStops = requestedPackage && !packagePlanIsComplete(result.plan);
+    const regularPlanNeedsDemoStops = !requestedPackage && districtId && result.plan?.items.length < 3;
+    if (packageNeedsDemoStops || regularPlanNeedsDemoStops) {
       const demoShops = await createDemoDestinationShops({
-        districtId,
+        districtId: districtId || 'custom',
         districtName: districtName || DISTRICTS[districtId] || 'ย่านที่เลือก',
         startLat: planOptions.startLat,
         startLng: planOptions.startLng,
-        budget: numBudget,
+        includeDemoBenefits: Boolean(requestedPackage?.couponCount),
       }) || [];
-      result = generatePlan(demoShops.map(serializeShop), planOptions);
-      demoGenerated = result.plan?.items.length > 0;
+      result = generatePlan([...shops, ...demoShops].map(serializeShop), planOptions);
     }
 
     if (!result.plan || result.plan.items.length === 0) {
@@ -161,19 +177,20 @@ router.post('/generate', async (req, res, next) => {
     }
     if (requestedPackage && (
       result.plan.items.length !== requestedPackage.placesCount ||
-      result.plan.items.filter((item) => item.coupon).length < requestedPackage.couponCount ||
-      result.plan.items.filter((item) => item.mission).length < requestedPackage.missionCount
+      result.plan.items.filter((item) => item.coupon).length < requiredCoupons ||
+      result.plan.items.filter((item) => item.mission).length < requiredMissions
     )) {
-      return res.status(422).json({ error: 'แผนนี้มีร้านที่ร่วมรายการไม่พอสำหรับพาส 6 จุดและคูปอง 2 ใบ ลองเลือกย่านที่มีร้านร่วมรายการ เพิ่มงบประมาณหรือรัศมี หรือปรับเวลาเที่ยว' });
+      return res.status(422).json({ error: `ไม่สามารถจัดแผน ${requestedPackage.placesCount} จุดพร้อมสิทธิประโยชน์ที่กำหนดได้ กรุณาขยายเวลาเที่ยวหรือปรับรัศมีค้นหา` });
     }
 
     result.plan.districtId = districtId || null;
     result.plan.style = style || 'chill';
     result.plan.startTime = planStartTime;
     result.plan.endTime = planEndTime;
+    const demoGenerated = result.plan.items.some((item) => item.isDemo);
     if (demoGenerated) {
       result.plan.demoGenerated = true;
-      result.plan.title = `แผนตัวอย่างเดโม · ${districtName || DISTRICTS[districtId] || 'ย่านที่เลือก'}`;
+      result.plan.title = `${result.plan.title} · มีจุดตัวอย่าง`;
     }
     if (typeof districtName === 'string' && districtName.length <= 120) {
       result.plan.districtName = districtName;
@@ -187,7 +204,7 @@ router.post('/generate', async (req, res, next) => {
     return res.json({
       plan: result.plan,
       warning: demoGenerated
-        ? 'ย่านนี้มีข้อมูลร้านจริงไม่เพียงพอสำหรับจัดแผน จึงใช้จุดตัวอย่างที่ไม่มีคูปองหรือสิทธิประโยชน์จริง โปรดตรวจสอบสถานที่ก่อนเดินทาง'
+        ? 'ข้อมูลร้านจริงในย่านนี้ไม่เพียงพอ จึงเติมจุดตัวอย่างให้ครบตามพาส คูปองและมิชชั่นที่ระบุว่าเป็นตัวอย่างใช้สิทธิ์กับร้านค้าจริงไม่ได้'
         : result.warning
     });
   } catch (error) {

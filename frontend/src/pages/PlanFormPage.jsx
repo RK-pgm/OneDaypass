@@ -257,6 +257,7 @@ export default function PlanFormPage() {
         endTime,
         durationHours: totalHours,
         deviceId: getDeviceId(),
+        passPackageId: 'single',
       };
 
       sessionStorage.setItem('daypass_plan_request', JSON.stringify(planRequest));

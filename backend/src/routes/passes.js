@@ -67,8 +67,10 @@ router.get('/:passId', async (req, res, next) => {
     FROM passes p
     JOIN orders o ON o.id = p.orderId WHERE p.id = ?`, req.params.passId);
   if (!pass) return res.status(404).json({ error: 'ไม่พบพาสนี้' });
-  const coupons = (await db.all('SELECT id, shopId, title, used FROM coupons WHERE passId = ? ORDER BY id', pass.id))
-    .map((coupon) => ({ ...coupon, used: Boolean(coupon.used) }));
+  const coupons = (await db.all(`SELECT c.id, c.shopId, c.title, c.used, s.isDemo
+    FROM coupons c LEFT JOIN shops s ON s.id = c.shopId
+    WHERE c.passId = ? ORDER BY c.id`, pass.id))
+    .map((coupon) => ({ ...coupon, used: Boolean(coupon.used), isDemo: Boolean(coupon.isDemo) }));
   const checkins = await db.all('SELECT shopId, at FROM checkins WHERE passId = ? ORDER BY at', pass.id);
   const unlockedMissionIds = (await db.all(`SELECT DISTINCT 'm-' || s.id AS missionId
     FROM checkins c JOIN shops s ON s.id = c.shopId
