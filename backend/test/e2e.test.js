@@ -273,7 +273,8 @@ async function runE2ETest() {
   console.log(`✅ 12. Points balance and transaction history updated: ${pts.points} points, ${pts.transactions.length} recent entries`);
 
   // 14. Register an account, migrate device data, and authenticate on another device
-  const contact = `auth-test-${Date.now()}@example.test`;
+  const contact = `086${Math.floor(1000000 + Math.random() * 9000000)}`;
+  const contactEmail = `auth-test-${Date.now()}@example.test`;
   const incompleteRegisterRes = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -296,7 +297,7 @@ async function runE2ETest() {
       nickname: 'Auth Test',
       fullName: 'Auth Example',
       phoneOrEmail: contact,
-      email: `profile-${contact}`,
+      email: contactEmail,
       dateOfBirth: '1995-06-15',
       currentAddress: '123 ถนนสุขุมวิท เขตวัฒนา กรุงเทพมหานคร',
       profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
@@ -316,6 +317,30 @@ async function runE2ETest() {
   assert(registerRes.status === 201 && registered.account?.accountId, 'Account registration failed');
   assert(registered.account.fullName === 'Auth Example' && registered.account.profilePhoto?.startsWith('data:image/png;base64,'), 'Required profile details were not saved');
   const accountId = registered.account.accountId;
+
+  const minimalRegisterRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Minimal Profile',
+      fullName: 'Minimal Profile Example',
+      phoneOrEmail: `087${Math.floor(1000000 + Math.random() * 9000000)}`,
+      email: `minimal-${Date.now()}@example.test`,
+      dateOfBirth: '1997-04-12',
+      password: 'minimal-password-123',
+      province: 'bangkok',
+      amphoe: 'samphanthawong',
+      tambon: 'ตลาดน้อย',
+      previousDeviceId: `minimal-dev-${Date.now()}`,
+    }),
+  });
+  const minimalRegistered = await minimalRegisterRes.json();
+  assert(
+    minimalRegisterRes.status === 201 &&
+      minimalRegistered.account?.currentAddress === '' &&
+      minimalRegistered.account?.profilePhoto === '',
+    'Registration should allow an omitted profile photo and address'
+  );
 
   const migratedHistoryRes = await fetch(`${base}/api/passes?deviceId=${accountId}`);
   const migratedHistory = await migratedHistoryRes.json();
@@ -346,7 +371,7 @@ async function runE2ETest() {
   const previousDevicePoints = await previousDevicePointsRes.json();
   assert(previousDevicePoints.totalPoints === 0, 'Second-device points were not moved to the account');
 
-    const updatedEmail = `updated-${contact}`;
+    const updatedEmail = `updated-${Date.now()}@example.test`;
     const profileRes = await fetch(`${base}/api/auth/profile`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },

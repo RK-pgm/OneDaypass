@@ -54,6 +54,10 @@ function isValidLogin(value) {
   return /^0\d{8,9}$/.test(normalized) || /^\+?\d{8,15}$/.test(normalized);
 }
 
+function isValidPhoneNumber(value) {
+  return typeof value === 'string' && isValidLogin(value) && !normalizeLogin(value).includes('@');
+}
+
 function isValidEmail(value) {
   return typeof value === 'string' && value.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
@@ -114,15 +118,17 @@ router.post('/register', async (req, res) => {
     if (typeof fullName !== 'string' || !fullName.trim() || fullName.trim().length > 120) {
       return res.status(400).json({ error: 'กรุณากรอกชื่อ-นามสกุลให้ถูกต้อง' });
     }
-    if (typeof phoneOrEmail !== 'string' || !phoneOrEmail.trim() || phoneOrEmail.length > 254 || !isValidLogin(phoneOrEmail)) {
-      return res.status(400).json({ error: 'กรุณากรอกอีเมลหรือเบอร์โทรศัพท์ให้ถูกต้อง' });
+    if (typeof phoneOrEmail !== 'string' || !phoneOrEmail.trim() || phoneOrEmail.length > 254 || !isValidPhoneNumber(phoneOrEmail)) {
+      return res.status(400).json({ error: 'กรุณากรอกเบอร์โทรศัพท์ให้ถูกต้อง' });
     }
     if (!isValidEmail(email)) return res.status(400).json({ error: 'กรุณากรอกอีเมลให้ถูกต้อง' });
     if (!isValidDateOfBirth(dateOfBirth)) return res.status(400).json({ error: 'กรุณากรอกวันเกิดให้ถูกต้อง' });
-    if (typeof currentAddress !== 'string' || !currentAddress.trim() || currentAddress.trim().length > 300) {
-      return res.status(400).json({ error: 'กรุณากรอกที่อยู่ปัจจุบันให้ถูกต้อง' });
+    if (currentAddress != null && (typeof currentAddress !== 'string' || currentAddress.trim().length > 300)) {
+      return res.status(400).json({ error: 'ที่อยู่ปัจจุบันต้องมีความยาวไม่เกิน 300 ตัวอักษร' });
     }
-    if (!isValidProfilePhoto(profilePhoto)) return res.status(400).json({ error: 'กรุณาเพิ่มรูปโปรไฟล์ JPG, PNG หรือ WebP' });
+    if (profilePhoto != null && profilePhoto !== '' && !isValidProfilePhoto(profilePhoto)) {
+      return res.status(400).json({ error: 'รูปโปรไฟล์ต้องเป็น JPG, PNG หรือ WebP' });
+    }
     if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
       return res.status(400).json({ error: 'รหัสผ่านต้องมีความยาว 8-128 ตัวอักษร' });
     }
@@ -158,8 +164,8 @@ router.post('/register', async (req, res) => {
       phoneOrEmail: phoneOrEmail.trim(),
       email: normalizedEmail,
       dateOfBirth,
-      currentAddress: currentAddress.trim(),
-      profilePhoto,
+      currentAddress: typeof currentAddress === 'string' ? currentAddress.trim() : '',
+      profilePhoto: profilePhoto || '',
       province: province.trim(),
       provinceName: typeof provinceName === 'string' ? provinceName.slice(0, 100) : province.trim(),
       provinceEmoji: typeof provinceEmoji === 'string' ? provinceEmoji.slice(0, 8) : '🏙️',
@@ -255,8 +261,8 @@ router.put('/profile', async (req, res) => {
       ('fullName' in profile && (typeof profile.fullName !== 'string' || !profile.fullName.trim() || profile.fullName.trim().length > 120)) ||
       ('email' in profile && !isValidEmail(profile.email)) ||
       ('dateOfBirth' in profile && !isValidDateOfBirth(profile.dateOfBirth)) ||
-      ('currentAddress' in profile && (typeof profile.currentAddress !== 'string' || !profile.currentAddress.trim() || profile.currentAddress.trim().length > 300)) ||
-      ('profilePhoto' in profile && !isValidProfilePhoto(profile.profilePhoto))
+      ('currentAddress' in profile && (typeof profile.currentAddress !== 'string' || profile.currentAddress.trim().length > 300)) ||
+      ('profilePhoto' in profile && profile.profilePhoto !== '' && !isValidProfilePhoto(profile.profilePhoto))
     ) {
       return res.status(400).json({ error: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
     }
