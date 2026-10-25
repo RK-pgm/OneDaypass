@@ -142,6 +142,116 @@ async function runE2ETest() {
   );
   console.log(`✅ 6. Pass fetched: Status ${pass.status}, ${pass.coupons.length} coupons attached`);
 
+  const eligibleShops = await fetch(`${base}/api/merchant/eligible-shops`).then((response) => response.json());
+  assert(Array.isArray(eligibleShops.shops) && eligibleShops.shops.length >= 2, 'Participating merchants were not listed');
+  assert(pass.coupons.length >= 2, 'Expected multiple coupons for merchant access-control tests');
+  const merchantCoupon = pass.coupons.at(-1);
+  const merchantShop = eligibleShops.shops.find((shop) => shop.id === merchantCoupon?.shopId);
+  const otherMerchantShop = eligibleShops.shops.find((shop) => shop.id !== merchantShop?.id);
+  assert(merchantShop && otherMerchantShop, 'Could not find two eligible merchants for access-control tests');
+  const merchantRegistration = await fetch(`${base}/api/merchant/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      shopName: merchantShop.name,
+      ownerName: 'Merchant Test Owner',
+      phone: '0812345678',
+      address: '1 ถนนสุขุมวิท กรุงเทพมหานคร',
+      password: 'merchant-test-pass',
+    }),
+  });
+  const merchantAccount = await merchantRegistration.json();
+  assert(merchantRegistration.status === 201 && merchantAccount.token, 'Merchant registration failed');
+  assert(
+    merchantAccount.merchant.shopName === merchantShop.name &&
+      merchantAccount.merchant.ownerName === 'Merchant Test Owner',
+    'Merchant registration did not return the registered shop identity'
+  );
+  const duplicateMerchantRegistration = await fetch(`${base}/api/merchant/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      shopName: merchantShop.name,
+      ownerName: 'Duplicate Merchant',
+      phone: '0898765432',
+      address: '2 ถนนสุขุมวิท กรุงเทพมหานคร',
+      password: 'merchant-test-pass',
+    }),
+  });
+  assert(duplicateMerchantRegistration.status === 409, 'A second merchant account claimed an already registered shop');
+  const merchantLogin = await fetch(`${base}/api/merchant/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shopName: merchantShop.name, password: 'merchant-test-pass' }),
+  }).then((response) => response.json());
+  assert(merchantLogin.token && merchantLogin.merchant.shopId === merchantShop.id, 'Merchant login failed');
+  const unauthenticatedMerchantLookup = await fetch(`${base}/api/merchant/passes/lookup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ passCode: pass.code }),
+  });
+  assert(unauthenticatedMerchantLookup.status === 401, 'Unauthenticated users could look up passes as a merchant');
+  const merchantLookupRes = await fetch(`${base}/api/merchant/passes/lookup`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${merchantLogin.token}`,
+    },
+    body: JSON.stringify({ passCode: pass.code }),
+  });
+  const merchantLookup = await merchantLookupRes.json();
+  assert(
+    merchantLookupRes.ok &&
+      merchantLookup.pass.code === pass.code &&
+      merchantLookup.coupons.length === 1 &&
+      merchantLookup.coupons[0].id === merchantCoupon.id,
+    'Merchant pass lookup did not restrict results to the merchant shop'
+  );
+  const otherMerchantRegistration = await fetch(`${base}/api/merchant/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      shopName: otherMerchantShop.name,
+      ownerName: 'Other Merchant',
+      phone: '0823456789',
+      address: '3 ถนนสุขุมวิท กรุงเทพมหานคร',
+      password: 'other-merchant-pass',
+    }),
+  }).then((response) => response.json());
+  const otherMerchantRedeem = await fetch(`${base}/api/merchant/coupons/${merchantCoupon.id}/redeem`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${otherMerchantRegistration.token}`,
+    },
+  });
+  assert(otherMerchantRedeem.status === 404, 'A different merchant could redeem another shop coupon');
+  const merchantRedeem = await fetch(`${base}/api/merchant/coupons/${merchantCoupon.id}/redeem`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${merchantLogin.token}`,
+    },
+  });
+  assert(merchantRedeem.ok, 'The registered merchant could not redeem its coupon');
+  const duplicateMerchantRedeem = await fetch(`${base}/api/merchant/coupons/${merchantCoupon.id}/redeem`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${merchantLogin.token}`,
+    },
+  });
+  assert(duplicateMerchantRedeem.status === 409, 'A merchant could redeem the same coupon more than once');
+  await fetch(`${base}/api/merchant/logout`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${merchantLogin.token}` },
+  });
+  const revokedMerchantSession = await fetch(`${base}/api/merchant/me`, {
+    headers: { Authorization: `Bearer ${merchantLogin.token}` },
+  });
+  assert(revokedMerchantSession.status === 401, 'Merchant logout did not revoke the session');
+  console.log('✅ 6b. Merchant registration/login, shop-only coupon access, one-time redemption, and logout passed');
+
   const explorerPlanRes = await fetch(`${base}/api/plans/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

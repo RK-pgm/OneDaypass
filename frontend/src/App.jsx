@@ -1,5 +1,5 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import { Link, Routes, Route, Navigate } from 'react-router-dom';
+import { Link, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import NongPassWidget from './components/NongPassWidget';
@@ -14,8 +14,10 @@ const CheckoutPage = lazy(() => import('./pages/CheckoutPage'));
 const PassPage = lazy(() => import('./pages/PassPage'));
 const TravelQuizPage = lazy(() => import('./pages/TravelQuizPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+const MerchantPortalPage = lazy(() => import('./pages/MerchantPortalPage'));
 
 export default function App() {
+  const location = useLocation();
   const [userAuth, setUserAuth] = useState(() => {
     try {
       const saved = localStorage.getItem('daypass_user_auth');
@@ -46,10 +48,18 @@ export default function App() {
     };
   }, []);
 
-  const publicPath = window.location.pathname;
+  const publicPath = location.pathname;
   if (['/about', '/privacy', '/terms'].includes(publicPath)) {
     const page = publicPath.slice(1);
     return <PublicInfoPage page={page} />;
+  }
+
+  if (publicPath.startsWith('/merchant')) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-slate-500">กำลังโหลด...</div>}>
+        <MerchantPortalPage />
+      </Suspense>
+    );
   }
 
   // ── PRE-ENTRY AUTH GATE ──

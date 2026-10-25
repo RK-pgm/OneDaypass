@@ -515,6 +515,13 @@ export default function AuthGatePage({ onAuthenticated }) {
 
   return (
     <div className="min-h-screen w-full relative flex items-center justify-center p-3 sm:p-6 lg:p-8 overflow-x-hidden font-sans bg-gradient-to-br from-amber-50 via-sky-50 to-orange-100/60">
+      <button
+        type="button"
+        onClick={() => navigate('/merchant')}
+        className="absolute right-4 top-4 z-20 rounded-xl border border-white/80 bg-white/90 px-3 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-white"
+      >
+        🏪 ร้านค้า
+      </button>
       {/* Decorative ambient elements */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-orange-300/20 blur-3xl" />

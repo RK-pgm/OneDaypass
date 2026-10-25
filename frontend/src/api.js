@@ -52,7 +52,11 @@ async function apiFetch(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...headers },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (!res.ok) {
+    const error = new Error(data.error || `HTTP ${res.status}`);
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 
@@ -94,6 +98,71 @@ export async function googleLoginAccount(googleAuthPayload, previousDeviceId) {
     method: 'POST',
     body: JSON.stringify({ ...googleAuthPayload, previousDeviceId }),
   });
+}
+
+const MERCHANT_SESSION_KEY = 'daypass_merchant_session';
+
+async function merchantFetch(path, options = {}) {
+  const token = localStorage.getItem(MERCHANT_SESSION_KEY);
+  try {
+    return await apiFetch(`/merchant${path}`, {
+      ...options,
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...options.headers },
+    });
+  } catch (error) {
+    if (error.status === 401) localStorage.removeItem(MERCHANT_SESSION_KEY);
+    throw error;
+  }
+}
+
+export function hasMerchantSession() {
+  return Boolean(localStorage.getItem(MERCHANT_SESSION_KEY));
+}
+
+function saveMerchantSession(result) {
+  localStorage.setItem(MERCHANT_SESSION_KEY, result.token);
+  return result;
+}
+
+export async function getEligibleMerchantShops() {
+  return apiFetch('/merchant/eligible-shops');
+}
+
+export async function registerMerchant(merchant) {
+  return saveMerchantSession(await apiFetch('/merchant/register', {
+    method: 'POST',
+    body: JSON.stringify(merchant),
+  }));
+}
+
+export async function loginMerchant(shopName, password) {
+  return saveMerchantSession(await apiFetch('/merchant/login', {
+    method: 'POST',
+    body: JSON.stringify({ shopName, password }),
+  }));
+}
+
+export async function getMerchantSession() {
+  return merchantFetch('/me');
+}
+
+export async function lookupMerchantPass(passCode) {
+  return merchantFetch('/passes/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ passCode }),
+  });
+}
+
+export async function redeemMerchantCoupon(couponId) {
+  return merchantFetch(`/coupons/${encodeURIComponent(couponId)}/redeem`, { method: 'POST' });
+}
+
+export async function logoutMerchant() {
+  try {
+    await merchantFetch('/logout', { method: 'POST' });
+  } finally {
+    localStorage.removeItem(MERCHANT_SESSION_KEY);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

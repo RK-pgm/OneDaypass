@@ -62,6 +62,16 @@ const sqliteSchema = `
     passwordSalt TEXT NOT NULL, passwordHash TEXT NOT NULL, profileJson TEXT NOT NULL,
     createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS merchant_accounts (
+    id TEXT PRIMARY KEY, shopId TEXT NOT NULL UNIQUE REFERENCES shops(id),
+    ownerName TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
+    passwordSalt TEXT NOT NULL, passwordHash TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS merchant_sessions (
+    tokenHash TEXT PRIMARY KEY, merchantId TEXT NOT NULL REFERENCES merchant_accounts(id),
+    expiresAt TEXT NOT NULL
+  );
   CREATE INDEX IF NOT EXISTS idx_coupons_pass ON coupons(passId);
   CREATE INDEX IF NOT EXISTS idx_checkins_pass ON checkins(passId);
   CREATE INDEX IF NOT EXISTS idx_mission_submissions_device ON mission_submissions(deviceId);
@@ -118,6 +128,16 @@ const postgresSchema = [
     passwordSalt TEXT NOT NULL, passwordHash TEXT NOT NULL, profileJson TEXT NOT NULL,
     createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS merchant_accounts (
+    id TEXT PRIMARY KEY, shopId TEXT NOT NULL UNIQUE REFERENCES shops(id),
+    ownerName TEXT NOT NULL, phone TEXT NOT NULL, address TEXT NOT NULL,
+    passwordSalt TEXT NOT NULL, passwordHash TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text
+  )`,
+  `CREATE TABLE IF NOT EXISTS merchant_sessions (
+    tokenHash TEXT PRIMARY KEY, merchantId TEXT NOT NULL REFERENCES merchant_accounts(id),
+    expiresAt TEXT NOT NULL
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_coupons_pass ON coupons(passId)',
   'CREATE INDEX IF NOT EXISTS idx_checkins_pass ON checkins(passId)',
   'CREATE INDEX IF NOT EXISTS idx_mission_submissions_device ON mission_submissions(deviceId)',
@@ -134,6 +154,8 @@ const camelColumns = new Map(Object.entries({
   loginkey: 'loginKey',
   missionid: 'missionId',
   missionjson: 'missionJson',
+  merchantid: 'merchantId',
+  ownername: 'ownerName',
   openfrom: 'openFrom',
   opento: 'openTo',
   orderid: 'orderId',
@@ -149,9 +171,12 @@ const camelColumns = new Map(Object.entries({
   redeemedat: 'redeemedAt',
   shopid: 'shopId',
   tagsjson: 'tagsJson',
+  tokenhash: 'tokenHash',
+  shopname: 'shopName',
   couponjson: 'couponJson',
   durationmin: 'durationMin',
   updatedat: 'updatedAt',
+  expiresat: 'expiresAt',
   validdate: 'validDate',
   holderindex: 'holderIndex',
 }));
