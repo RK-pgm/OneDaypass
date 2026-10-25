@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import NongPassWidget from './components/NongPassWidget';
 import AuthGatePage from './pages/AuthGatePage';
+import PublicInfoPage from './pages/PublicInfoPage';
 
 import HomePage from './pages/HomePage';
 import PlanFormPage from './pages/PlanFormPage';
@@ -44,6 +45,12 @@ export default function App() {
       window.removeEventListener('storage', handleAuthChange);
     };
   }, []);
+
+  const publicPath = window.location.pathname;
+  if (['/about', '/privacy', '/terms'].includes(publicPath)) {
+    const page = publicPath.slice(1);
+    return <PublicInfoPage page={page} />;
+  }
 
   // ── PRE-ENTRY AUTH GATE ──
   // If user is not logged in / registered, show the dedicated AuthGatePage before entering

@@ -6,6 +6,25 @@ const db = require('../db');
 const router = express.Router();
 const scrypt = promisify(crypto.scrypt);
 const PASSWORD_BYTES = 64;
+const DEFAULT_GOOGLE_CLIENT_ID = '66274212738-mn58k9bda2n8ig62m0ifa8dcavitkcoa.apps.googleusercontent.com';
+const GOOGLE_CLIENT_IDS = new Set(
+  (process.env.GOOGLE_CLIENT_ID || DEFAULT_GOOGLE_CLIENT_ID)
+    .split(',')
+    .map((clientId) => clientId.trim())
+    .filter(Boolean)
+);
+
+function isCompactJwt(value) {
+  const parts = value.split('.');
+  if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) return false;
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8'));
+    return Boolean(header && typeof header === 'object' && !Array.isArray(header) && payload && typeof payload === 'object' && !Array.isArray(payload));
+  } catch {
+    return false;
+  }
+}
 
 function getEmailJsonExtractSql() {
   return db.isPostgres
@@ -383,56 +402,38 @@ router.post('/social', async (req, res) => {
 
 router.post('/google', async (req, res) => {
   try {
-    const { credential, accessToken, previousDeviceId } = req.body || {};
-    if (!credential && !accessToken) {
+    const { credential, previousDeviceId } = req.body || {};
+    if (typeof credential !== 'string' || !credential.trim()) {
       return res.status(400).json({ error: 'ไม่พบข้อมูล Google Token สำหรับยืนยันตัวตน' });
     }
-
-    let googleProfile = null;
-
-    if (credential) {
-      const tokenUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
-      const googleRes = await fetch(tokenUrl);
-      if (!googleRes.ok) {
-        const errText = await googleRes.text().catch(() => '');
-        console.error('[Google Tokeninfo Error]:', errText);
-        return res.status(401).json({ error: 'Google Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
-      }
-      const data = await googleRes.json();
-      if (!data.email) {
-        return res.status(400).json({ error: 'ไม่สามารถดึงอีเมลจากบัญชี Google ได้' });
-      }
-      googleProfile = {
-        sub: data.sub,
-        email: data.email,
-        name: data.name || data.given_name || 'Google User',
-        picture: data.picture,
-      };
-    } else if (accessToken) {
-      const userinfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
-      const googleRes = await fetch(userinfoUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (!googleRes.ok) {
-        const errText = await googleRes.text().catch(() => '');
-        console.error('[Google Userinfo Error]:', errText);
-        return res.status(401).json({ error: 'Google Access Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
-      }
-      const data = await googleRes.json();
-      if (!data.email) {
-        return res.status(400).json({ error: 'ไม่สามารถดึงอีเมลจากบัญชี Google ได้' });
-      }
-      googleProfile = {
-        sub: data.sub,
-        email: data.email,
-        name: data.name || data.given_name || 'Google User',
-        picture: data.picture,
-      };
+    if (!isCompactJwt(credential)) {
+      return res.status(401).json({ error: 'Google Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
     }
 
-    if (!googleProfile) {
-      return res.status(400).json({ error: 'ไม่สามารถยืนยันตัวตนกับ Google ได้' });
+    const tokenUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
+    let googleRes;
+    try {
+      googleRes = await fetch(tokenUrl);
+    } catch (error) {
+      console.error('[Google Tokeninfo Unavailable]:', error.message);
+      return res.status(503).json({ error: 'ระบบยืนยันตัวตน Google ไม่พร้อมใช้งานชั่วคราว กรุณาลองใหม่อีกครั้ง' });
     }
+    if (!googleRes.ok) {
+      const errText = await googleRes.text().catch(() => '');
+      console.error('[Google Tokeninfo Error]:', errText);
+      return res.status(401).json({ error: 'Google Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
+    }
+    const data = await googleRes.json();
+    const validIssuer = ['accounts.google.com', 'https://accounts.google.com'].includes(data.iss);
+    if (!GOOGLE_CLIENT_IDS.has(data.aud) || !validIssuer || !data.sub || !data.email || String(data.email_verified) !== 'true') {
+      return res.status(401).json({ error: 'Google Token ไม่ได้ออกให้กับแอปนี้ หรือบัญชียังยืนยันอีเมลไม่สำเร็จ' });
+    }
+    const googleProfile = {
+      sub: data.sub,
+      email: data.email,
+      name: data.name || data.given_name || 'Google User',
+      picture: data.picture,
+    };
 
     const normalizedEmail = googleProfile.email.trim().toLowerCase();
     const emailExtract = getEmailJsonExtractSql();

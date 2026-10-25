@@ -73,7 +73,7 @@ export default function AuthGatePage({ onAuthenticated }) {
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
 
   // Real Google OAuth Configuration state
-  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '254537503870-fpdrlfv5tarvk71gajt68v9rpe8ps4sq.apps.googleusercontent.com';
+  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '66274212738-mn58k9bda2n8ig62m0ifa8dcavitkcoa.apps.googleusercontent.com';
   const [googleClientId, setGoogleClientId] = useState(() => {
     try {
       return localStorage.getItem('daypass_google_client_id') || envGoogleClientId;
@@ -405,37 +405,14 @@ export default function AuthGatePage({ onAuthenticated }) {
 
     setSocialLoading('google');
 
-    // 1. Try Google Identity Services OAuth2 Token Client (opens Google account chooser popup)
-    if (window.google?.accounts?.oauth2) {
-      try {
-        const tokenClient = window.google.accounts.oauth2.initTokenClient({
-          client_id: activeClientId,
-          scope: 'openid email profile',
-          callback: async (tokenResponse) => {
-            if (tokenResponse.error) {
-              setSocialLoading('');
-              if (tokenResponse.error !== 'popup_closed_by_user') {
-                setError(`Google Sign-In ผิดพลาด: ${tokenResponse.error_description || tokenResponse.error}`);
-              }
-              return;
-            }
-            await handleGoogleLoginSuccess({ accessToken: tokenResponse.access_token });
-          },
-        });
-        tokenClient.requestAccessToken({ prompt: 'select_account' });
-        return;
-      } catch (err) {
-        console.warn('Google OAuth2 popup init failed:', err);
-      }
-    }
-
-    // 2. Fallback to Google ID One Tap Prompt
     if (window.google?.accounts?.id) {
       try {
+        setSubmitting(true);
         window.google.accounts.id.prompt((notification) => {
-          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment() || notification.isDismissedMoment()) {
             setSocialLoading('');
-            setError('เบราว์เซอร์บล็อกหน้าต่าง Google กรุณาอนุญาตป๊อปอัปหรือกดเลือกบัญชีอีกครั้ง');
+            setSubmitting(false);
+            setError('Google ไม่แสดงหน้าต่างเลือกบัญชี กรุณากดปุ่ม Google ด้านล่าง หรืออนุญาตการลงชื่อเข้าใช้ในเบราว์เซอร์');
           }
         });
         return;
@@ -445,6 +422,7 @@ export default function AuthGatePage({ onAuthenticated }) {
     }
 
     setSocialLoading('');
+    setSubmitting(false);
     setError('ระบบ Google Sign-In กำลังโหลด กรุณารอสักครู่แล้วลองกดใหม่อีกครั้ง');
   }
 
@@ -861,7 +839,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                   {googleSetupTab === 'config' && (
                     <form onSubmit={handleSaveGoogleClientId} className="space-y-3">
                       <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-2xl text-[11px] text-sky-900 leading-relaxed">
-                        <span className="font-bold">💡 Google กำหนดความปลอดภัย:</span> การให้หน้าเว็บเรียก Popup เลือกบัญชี Google ของจริง ต้องระบุ <strong>Google OAuth Client ID</strong> จาก Google Cloud Console
+                        <span className="font-bold">💡 Google กำหนดความปลอดภัย:</span> ใช้ Google OAuth Client ID จาก Google Cloud Console ค่านี้ที่บันทึกตรงนี้มีผลเฉพาะเบราว์เซอร์นี้ หากต้องการให้ผู้ใช้ทุกคนล็อกอินได้ ให้ตั้ง <strong>VITE_GOOGLE_CLIENT_ID</strong> และ <strong>GOOGLE_CLIENT_ID</strong> ฝั่งเซิร์ฟเวอร์ให้ตรงกันด้วย
                       </div>
 
                       <div>
