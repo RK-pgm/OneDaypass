@@ -511,6 +511,22 @@ async function runE2ETest() {
   assert(socialLineRes.status === 201 && socialLineData.account?.provider === 'line', 'LINE 1-click registration failed');
   console.log('✅ 15. Fast 1-Click Social Login (Google & LINE) passed');
 
+  // 16. Real Google OAuth Endpoint Validation
+  const emptyGoogleRes = await fetch(`${base}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
+  assert(emptyGoogleRes.status === 400, 'Empty Google token request should return 400');
+
+  const invalidGoogleRes = await fetch(`${base}/api/auth/google`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential: 'invalid.jwt.token' }),
+  });
+  assert(invalidGoogleRes.status === 401, 'Invalid Google token should return 401');
+  console.log('✅ 16. Real Google OAuth Token Verification endpoint passed');
+
   console.log('\n🎉 ALL DAYPASS API CHECKS PASSED!');
 }
 

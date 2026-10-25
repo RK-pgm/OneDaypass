@@ -81,6 +81,13 @@ export async function socialLoginAccount(socialData, previousDeviceId) {
   });
 }
 
+export async function googleLoginAccount(googleAuthPayload, previousDeviceId) {
+  return apiFetch('/auth/google', {
+    method: 'POST',
+    body: JSON.stringify({ ...googleAuthPayload, previousDeviceId }),
+  });
+}
+
 import { DISTRICT_DESTINATIONS, findDestinationById, PROVINCES } from './data/locations';
 
 // ─────────────────────────────────────────────────────────────

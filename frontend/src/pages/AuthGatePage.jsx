@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   PROVINCES,
@@ -9,7 +9,7 @@ import {
   getAdministrativeDistricts,
   getAdministrativeSubdistricts,
 } from '../data/locations';
-import { addPoints, getDeviceId, loginAccount, registerAccount, socialLoginAccount } from '../api';
+import { addPoints, getDeviceId, loginAccount, registerAccount, socialLoginAccount, googleLoginAccount } from '../api';
 import { encodeProfilePhoto } from '../utils/profilePhoto';
 
 function getSavedAccounts() {
@@ -71,6 +71,19 @@ export default function AuthGatePage({ onAuthenticated }) {
   const [showGoogleModal, setShowGoogleModal] = useState(false);
   const [customGoogleName, setCustomGoogleName] = useState('');
   const [customGoogleEmail, setCustomGoogleEmail] = useState('');
+
+  // Real Google OAuth Configuration state
+  const envGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+  const [googleClientId, setGoogleClientId] = useState(() => {
+    try {
+      return localStorage.getItem('daypass_google_client_id') || envGoogleClientId;
+    } catch {
+      return envGoogleClientId;
+    }
+  });
+  const [tempClientIdInput, setTempClientIdInput] = useState(googleClientId);
+  const [googleSetupTab, setGoogleSetupTab] = useState('config'); // 'config' | 'guide' | 'demo'
+  const googleBtnContainerRef = useRef(null);
 
   // GPS state
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -351,6 +364,165 @@ export default function AuthGatePage({ onAuthenticated }) {
     completeAuthAndEnter(demoAuth, userProfile);
   }
 
+  // Handle successful Google auth from either Credential (JWT) or Access Token
+  async function handleGoogleLoginSuccess(responsePayload) {
+    setError('');
+    setSocialLoading('google');
+    setSubmitting(true);
+    try {
+      const { account: authData } = await googleLoginAccount(responsePayload, getDeviceId());
+      const userProfile = {
+        nickname: authData.nickname,
+        fullName: authData.fullName,
+        phoneOrEmail: authData.phoneOrEmail,
+        email: authData.email,
+        dateOfBirth: authData.dateOfBirth,
+        currentAddress: authData.currentAddress,
+        profilePhoto: authData.profilePhoto,
+        province: authData.province,
+        district: authData.amphoe,
+        tambon: authData.tambon,
+        lat: authData.lat || 13.7313,
+        lng: authData.lng || 100.5105,
+        homeBaseName: `${authData.provinceName || 'กรุงเทพมหานคร'} - ${authData.amphoeName || 'สัมพันธวงศ์'}`,
+      };
+      completeAuthAndEnter(authData, userProfile);
+    } catch (err) {
+      setError(err.message || 'ไม่สามารถเข้าสู่ระบบด้วย Google ได้');
+      setSubmitting(false);
+      setSocialLoading('');
+    }
+  }
+
+  // Real Google Sign-In Trigger
+  function triggerRealGoogleLogin() {
+    setError('');
+    const activeClientId = googleClientId?.trim();
+    if (!activeClientId) {
+      setShowGoogleModal(true);
+      return;
+    }
+
+    setSocialLoading('google');
+
+    // 1. Try Google Identity Services OAuth2 Token Client (opens Google account chooser popup)
+    if (window.google?.accounts?.oauth2) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: activeClientId,
+          scope: 'openid email profile',
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              setSocialLoading('');
+              if (tokenResponse.error !== 'popup_closed_by_user') {
+                setError(`Google Sign-In ผิดพลาด: ${tokenResponse.error_description || tokenResponse.error}`);
+              }
+              return;
+            }
+            await handleGoogleLoginSuccess({ accessToken: tokenResponse.access_token });
+          },
+        });
+        tokenClient.requestAccessToken({ prompt: 'select_account' });
+        return;
+      } catch (err) {
+        console.warn('Google OAuth2 popup init failed:', err);
+      }
+    }
+
+    // 2. Fallback to Google ID One Tap Prompt
+    if (window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.prompt((notification) => {
+          if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+            setSocialLoading('');
+            setError('เบราว์เซอร์บล็อกหน้าต่าง Google กรุณาอนุญาตป๊อปอัปหรือกดเลือกบัญชีอีกครั้ง');
+          }
+        });
+        return;
+      } catch (err) {
+        console.warn('Google prompt failed:', err);
+      }
+    }
+
+    setSocialLoading('');
+    setError('ระบบ Google Sign-In กำลังโหลด กรุณารอสักครู่แล้วลองกดใหม่อีกครั้ง');
+  }
+
+  // Initialize Google Identity Services when googleClientId changes
+  useEffect(() => {
+    const activeClientId = googleClientId?.trim();
+    if (!activeClientId) return;
+
+    function initGis() {
+      if (!window.google?.accounts?.id) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: activeClientId,
+          callback: async (res) => {
+            if (res.credential) {
+              await handleGoogleLoginSuccess({ credential: res.credential });
+            }
+          },
+          auto_select: false,
+          cancel_on_tap_outside: true,
+        });
+
+        if (googleBtnContainerRef.current) {
+          googleBtnContainerRef.current.innerHTML = '';
+          window.google.accounts.id.renderButton(googleBtnContainerRef.current, {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'pill',
+            logo_alignment: 'left',
+            width: 280,
+          });
+        }
+      } catch (err) {
+        console.warn('Google Identity Services init error:', err);
+      }
+    }
+
+    if (window.google?.accounts?.id) {
+      initGis();
+    } else {
+      const timer = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(timer);
+          initGis();
+        }
+      }, 300);
+      return () => clearInterval(timer);
+    }
+  }, [googleClientId]);
+
+  function handleSaveGoogleClientId(e) {
+    e?.preventDefault();
+    const cleanId = tempClientIdInput.trim();
+    if (!cleanId) {
+      setError('กรุณากรอก Google Client ID');
+      return;
+    }
+    try {
+      localStorage.setItem('daypass_google_client_id', cleanId);
+    } catch {}
+    setGoogleClientId(cleanId);
+    setShowGoogleModal(false);
+    setError('');
+    setTimeout(() => {
+      triggerRealGoogleLogin();
+    }, 350);
+  }
+
+  function handleResetGoogleClientId() {
+    try {
+      localStorage.removeItem('daypass_google_client_id');
+    } catch {}
+    setGoogleClientId(envGoogleClientId || '');
+    setTempClientIdInput(envGoogleClientId || '');
+    setError('');
+  }
+
   async function handleSocialLogin(provider, customData = null) {
     setError('');
     setSocialLoading(provider);
@@ -569,9 +741,9 @@ export default function AuthGatePage({ onAuthenticated }) {
                 <button
                   type="button"
                   id="btn-social-google"
-                  onClick={() => handleSocialLogin('google')}
+                  onClick={triggerRealGoogleLogin}
                   disabled={submitting}
-                  className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group"
+                  className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 text-slate-800 font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group relative overflow-hidden"
                 >
                   <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -579,7 +751,14 @@ export default function AuthGatePage({ onAuthenticated }) {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                   </svg>
-                  <span>{socialLoading === 'google' ? 'กำลังเชื่อมต่อ Google...' : 'เข้าสู่ระบบด้วย Google'}</span>
+                  <span>
+                    {socialLoading === 'google'
+                      ? 'กำลังเชื่อมต่อ Google...'
+                      : (googleClientId ? 'เข้าสู่ระบบด้วย Google จริง' : 'เข้าสู่ระบบด้วย Google ⚡')}
+                  </span>
+                  {googleClientId && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping absolute top-2 right-2" title="Google OAuth เชื่อมต่อแล้ว" />
+                  )}
                 </button>
 
                 {/* LINE Button */}
@@ -598,91 +777,224 @@ export default function AuthGatePage({ onAuthenticated }) {
                 </button>
               </div>
 
-              {/* Quick option to choose custom Google name/email */}
-              <div className="mt-2.5 pt-2 border-t border-amber-200/50 flex items-center justify-between text-[11px] text-slate-500">
-                <span>แตะปุ่มเพื่อเข้าใช้งานทันทีใน 1 วิ</span>
+              {/* Official Google Button Render Container (if GIS rendered) */}
+              <div ref={googleBtnContainerRef} className="mt-2.5 flex justify-center [&>div]:mx-auto" />
+
+              {/* Real Google OAuth Setup / Status Bar */}
+              <div className="mt-2.5 pt-2 border-t border-amber-200/50 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
+                <span className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full ${googleClientId ? 'bg-emerald-500' : 'bg-amber-400'}`} />
+                  <span>{googleClientId ? 'เชื่อมต่อ Google OAuth แล้ว' : 'ยังไม่ได้เชื่อมต่อ Client ID'}</span>
+                </span>
                 <button
                   type="button"
                   id="btn-custom-google-toggle"
                   onClick={() => setShowGoogleModal(true)}
-                  className="font-bold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer"
+                  className="font-bold text-brand-600 hover:text-brand-800 hover:underline cursor-pointer flex items-center gap-1"
                 >
-                  เลือกหรือกรอก Gmail อื่น ⚙️
+                  <span>⚙️ ตั้งค่า Google OAuth จริง</span>
                 </button>
               </div>
             </div>
 
-            {/* Google Custom Account Modal */}
+            {/* Google Real OAuth / Custom Setup Modal */}
             {showGoogleModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in">
-                <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                      </svg>
-                      <h3 className="font-black text-slate-900 text-sm">เข้าสู่ระบบด้วย Google</h3>
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs animate-fade-in">
+                <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] overflow-y-auto">
+                  {/* Header */}
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
+                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h3 className="font-black text-slate-900 text-sm">เชื่อมต่อกับ Google จริง (OAuth 2.0)</h3>
+                        <p className="text-[11px] text-slate-500">เลือกบัญชี Google จริงและล็อกอินทันที</p>
+                      </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => setShowGoogleModal(false)}
-                      className="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer"
+                      className="text-slate-400 hover:text-slate-600 text-base font-bold cursor-pointer p-1"
                     >
                       ✕
                     </button>
                   </div>
 
-                  <p className="text-xs text-slate-600">
-                    กรอกชื่อและอีเมล Gmail ที่คุณต้องการใช้เข้าสู่ระบบ:
-                  </p>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">ชื่อที่แสดง</label>
-                      <input
-                        type="text"
-                        value={customGoogleName}
-                        onChange={(e) => setCustomGoogleName(e.target.value)}
-                        placeholder="เช่น สมชาย ใจดี"
-                        className="input-field py-2 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold text-slate-700 block mb-1">อีเมล Gmail</label>
-                      <input
-                        type="email"
-                        value={customGoogleEmail}
-                        onChange={(e) => setCustomGoogleEmail(e.target.value)}
-                        placeholder="yourname@gmail.com"
-                        className="input-field py-2 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-2">
+                  {/* Tab Navigation inside Modal */}
+                  <div className="flex p-1 bg-slate-100 rounded-xl text-xs font-bold">
                     <button
                       type="button"
-                      onClick={() => setShowGoogleModal(false)}
-                      className="flex-1 py-2 text-xs font-bold text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                      onClick={() => setGoogleSetupTab('config')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all ${
+                        googleSetupTab === 'config' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
                     >
-                      ยกเลิก
+                      🔑 กรอก Client ID
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        handleSocialLogin('google', {
-                          name: customGoogleName || 'Google User',
-                          email: customGoogleEmail || 'somchai.traveler@gmail.com',
-                        });
-                      }}
-                      className="flex-1 py-2 text-xs font-bold text-white rounded-xl bg-brand-500 hover:bg-brand-600 shadow-sm cursor-pointer"
+                      onClick={() => setGoogleSetupTab('guide')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all ${
+                        googleSetupTab === 'guide' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
                     >
-                      เข้าสู่ระบบทันที
+                      📋 วิธีขอ ID ฟรี
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGoogleSetupTab('demo')}
+                      className={`flex-1 py-1.5 rounded-lg transition-all ${
+                        googleSetupTab === 'demo' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      ⚡ Quick Demo
                     </button>
                   </div>
+
+                  {/* Tab Content 1: Client ID Configuration */}
+                  {googleSetupTab === 'config' && (
+                    <form onSubmit={handleSaveGoogleClientId} className="space-y-3">
+                      <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-2xl text-[11px] text-sky-900 leading-relaxed">
+                        <span className="font-bold">💡 Google กำหนดความปลอดภัย:</span> การให้หน้าเว็บเรียก Popup เลือกบัญชี Google ของจริง ต้องระบุ <strong>Google OAuth Client ID</strong> จาก Google Cloud Console
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                          Google Client ID (ลงท้ายด้วย .apps.googleusercontent.com)
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={tempClientIdInput}
+                          onChange={(e) => setTempClientIdInput(e.target.value)}
+                          placeholder="เช่น 123456789-abcdefg.apps.googleusercontent.com"
+                          className="input-field py-2 text-xs font-mono"
+                        />
+                      </div>
+
+                      {googleClientId && (
+                        <div className="flex items-center justify-between text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
+                          <span>✓ ปัจจุบันกำลังใช้งาน Client ID นี้</span>
+                          <button
+                            type="button"
+                            onClick={handleResetGoogleClientId}
+                            className="font-bold text-rose-600 hover:underline cursor-pointer"
+                          >
+                            ล้างค่า
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setShowGoogleModal(false)}
+                          className="flex-1 py-2 text-xs font-bold text-slate-600 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer"
+                        >
+                          ปิด
+                        </button>
+                        <button
+                          type="submit"
+                          className="flex-1 py-2 text-xs font-bold text-white rounded-xl bg-brand-500 hover:bg-brand-600 shadow-sm cursor-pointer"
+                        >
+                          บันทึก & ล็อกอินจริงทันที 🚀
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  {/* Tab Content 2: Step-by-Step Guide */}
+                  {googleSetupTab === 'guide' && (
+                    <div className="space-y-3 text-xs text-slate-700">
+                      <div className="space-y-2 p-3 bg-amber-50/60 rounded-2xl border border-amber-200/80">
+                        <p className="font-black text-amber-900">4 ขั้นตอนง่าย ๆ ใน Google Cloud Console (ฟรี):</p>
+                        <ol className="list-decimal pl-4 space-y-1.5 text-[11px] text-slate-700 leading-relaxed">
+                          <li>
+                            เข้าสู่หน้าเว็บ{' '}
+                            <a
+                              href="https://console.cloud.google.com/apis/credentials"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-bold text-brand-600 underline"
+                            >
+                              Google Cloud Console Credentials ↗
+                            </a>
+                          </li>
+                          <li>กดปุ่ม <strong>+ CREATE CREDENTIALS</strong> แล้วเลือก <strong>OAuth client ID</strong></li>
+                          <li>เลือก Application type เป็น <strong>Web application</strong></li>
+                          <li>
+                            ในหัวข้อ <strong>Authorized JavaScript origins</strong> เพิ่ม URL:
+                            <div className="mt-1 font-mono text-[10px] bg-white p-2 rounded-lg border border-amber-200 space-y-0.5 select-all">
+                              <div>http://localhost:5173</div>
+                              <div>http://localhost:5000</div>
+                              <div>{window.location.origin}</div>
+                            </div>
+                          </li>
+                          <li>คัดลอก <strong>Client ID</strong> มาวางในแท็บ "กรอก Client ID" หรือเพิ่มใน Vercel Environment Variables: <code className="font-bold">VITE_GOOGLE_CLIENT_ID</code></li>
+                        </ol>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setGoogleSetupTab('config')}
+                        className="w-full py-2 text-xs font-bold text-brand-600 bg-orange-50 hover:bg-orange-100 rounded-xl border border-orange-200 cursor-pointer"
+                      >
+                        นำ Client ID มากรอกที่นี่ ➡️
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Tab Content 3: Quick Demo Fallback */}
+                  {googleSetupTab === 'demo' && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-slate-600">
+                        หากยังไม่ได้ตั้งค่า Google Cloud สามารถใช้บัญชีตัวอย่างเพื่อทดสอบระบบได้ทันที:
+                      </p>
+
+                      <div className="space-y-2.5">
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 block mb-1">ชื่อที่แสดง</label>
+                          <input
+                            type="text"
+                            value={customGoogleName}
+                            onChange={(e) => setCustomGoogleName(e.target.value)}
+                            placeholder="เช่น สมชาย ใจดี"
+                            className="input-field py-2 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-slate-700 block mb-1">อีเมล Gmail</label>
+                          <input
+                            type="email"
+                            value={customGoogleEmail}
+                            onChange={(e) => setCustomGoogleEmail(e.target.value)}
+                            placeholder="yourname@gmail.com"
+                            className="input-field py-2 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowGoogleModal(false);
+                          handleSocialLogin('google', {
+                            name: customGoogleName || 'สมชาย ใจดี',
+                            email: customGoogleEmail || 'somchai.traveler@gmail.com',
+                          });
+                        }}
+                        className="w-full py-2.5 text-xs font-bold text-white rounded-xl bg-brand-500 hover:bg-brand-600 shadow-sm cursor-pointer"
+                      >
+                        เข้าสู่ระบบด้วยบัญชีทดสอบทันที ✨
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

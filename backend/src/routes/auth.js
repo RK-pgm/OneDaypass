@@ -381,4 +381,132 @@ router.post('/social', async (req, res) => {
   }
 });
 
+router.post('/google', async (req, res) => {
+  try {
+    const { credential, accessToken, previousDeviceId } = req.body || {};
+    if (!credential && !accessToken) {
+      return res.status(400).json({ error: 'ไม่พบข้อมูล Google Token สำหรับยืนยันตัวตน' });
+    }
+
+    let googleProfile = null;
+
+    if (credential) {
+      const tokenUrl = `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`;
+      const googleRes = await fetch(tokenUrl);
+      if (!googleRes.ok) {
+        const errText = await googleRes.text().catch(() => '');
+        console.error('[Google Tokeninfo Error]:', errText);
+        return res.status(401).json({ error: 'Google Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
+      }
+      const data = await googleRes.json();
+      if (!data.email) {
+        return res.status(400).json({ error: 'ไม่สามารถดึงอีเมลจากบัญชี Google ได้' });
+      }
+      googleProfile = {
+        sub: data.sub,
+        email: data.email,
+        name: data.name || data.given_name || 'Google User',
+        picture: data.picture,
+      };
+    } else if (accessToken) {
+      const userinfoUrl = 'https://www.googleapis.com/oauth2/v3/userinfo';
+      const googleRes = await fetch(userinfoUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!googleRes.ok) {
+        const errText = await googleRes.text().catch(() => '');
+        console.error('[Google Userinfo Error]:', errText);
+        return res.status(401).json({ error: 'Google Access Token ไม่ถูกต้องหรือหมดอายุแล้ว' });
+      }
+      const data = await googleRes.json();
+      if (!data.email) {
+        return res.status(400).json({ error: 'ไม่สามารถดึงอีเมลจากบัญชี Google ได้' });
+      }
+      googleProfile = {
+        sub: data.sub,
+        email: data.email,
+        name: data.name || data.given_name || 'Google User',
+        picture: data.picture,
+      };
+    }
+
+    if (!googleProfile) {
+      return res.status(400).json({ error: 'ไม่สามารถยืนยันตัวตนกับ Google ได้' });
+    }
+
+    const normalizedEmail = googleProfile.email.trim().toLowerCase();
+    const emailExtract = getEmailJsonExtractSql();
+
+    const row = await db.get(`
+      SELECT id, loginKey, passwordSalt, passwordHash, profileJson
+      FROM accounts
+      WHERE loginKey = ? OR phoneOrEmail = ? OR ${emailExtract} = ?
+    `, normalizedEmail, normalizedEmail, normalizedEmail);
+
+    if (row) {
+      if (typeof previousDeviceId === 'string' && previousDeviceId.trim() && previousDeviceId.length <= 128) {
+        await db.transaction(() => migrateDeviceData(previousDeviceId, row.id));
+      }
+      return res.json({ ok: true, account: publicAccount(row), isNew: false });
+    }
+
+    const id = `acct_${crypto.randomUUID()}`;
+    const salt = crypto.randomBytes(16);
+    const randomSecret = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await scrypt(randomSecret, salt, PASSWORD_BYTES);
+    const now = new Date().toISOString();
+
+    const nickname = (googleProfile.name || 'Google Traveler').slice(0, 40);
+    const fullName = (googleProfile.name || 'Google Traveler').slice(0, 120);
+    const profilePhoto = (googleProfile.picture && typeof googleProfile.picture === 'string' && googleProfile.picture.length <= 500_000)
+      ? googleProfile.picture
+      : '/mascot/nong-pass-guide.jpg';
+
+    const profile = {
+      nickname,
+      fullName,
+      phoneOrEmail: normalizedEmail,
+      email: normalizedEmail,
+      provider: 'google',
+      providerId: googleProfile.sub,
+      dateOfBirth: '2000-01-01',
+      currentAddress: 'กรุงเทพมหานคร',
+      profilePhoto,
+      province: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      provinceEmoji: '🏙️',
+      amphoe: 'samphanthawong',
+      amphoeName: 'สัมพันธวงศ์',
+      tambon: 'ตลาดน้อย',
+      lat: 13.7313,
+      lng: 100.5105,
+      registeredAt: now,
+    };
+
+    await db.transaction(async () => {
+      await db.run(`
+        INSERT INTO accounts (id, loginKey, phoneOrEmail, passwordSalt, passwordHash, profileJson, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, id, normalizedEmail, normalizedEmail, salt.toString('hex'), passwordHash.toString('hex'), JSON.stringify(profile), now, now);
+      await migrateDeviceData(previousDeviceId, id);
+      const welcomeReason = 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨';
+      const hasWelcomeBonus = await db.get(
+        'SELECT 1 FROM points_ledger WHERE deviceId = ? AND reason = ? LIMIT 1', id, welcomeReason
+      );
+      if (!hasWelcomeBonus) {
+        await db.run(`
+          INSERT INTO points_ledger (id, deviceId, delta, reason, at)
+          VALUES (?, ?, 50, ?, ?)
+        `, `pt_${crypto.randomUUID()}`, id, welcomeReason, now);
+      }
+    });
+
+    const newRow = await db.get('SELECT id, profileJson FROM accounts WHERE id = ?', id);
+    return res.status(201).json({ ok: true, account: publicAccount(newRow), isNew: true });
+  } catch (error) {
+    console.error('[Error POST /api/auth/google]:', error);
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการยืนยันตัวตนกับ Google' });
+  }
+});
+
 module.exports = router;
