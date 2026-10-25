@@ -682,7 +682,7 @@ export default function AuthGatePage({ onAuthenticated }) {
                   id="btn-social-line"
                   onClick={() => handleSocialLogin('line')}
                   disabled={submitting}
-                  className="flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group"
+                  className="w-full max-w-[280px] mx-auto flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-[#06C755] hover:bg-[#05b34c] text-white font-bold text-xs sm:text-sm shadow-xs transition-all active:scale-98 cursor-pointer group"
                   style={{ boxShadow: '0 4px 14px rgba(6,199,85,0.25)' }}
                 >
                   <svg className="w-4 h-4 flex-shrink-0 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor">
