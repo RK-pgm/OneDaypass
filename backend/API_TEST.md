@@ -26,7 +26,7 @@ curl.exe "http://localhost:5000/api/shops?lat=13.7313&lng=100.5105&radiusKm=3"
 สมัครบัญชีด้วยเบอร์โทรศัพท์หรืออีเมลและรหัสผ่าน (อย่างน้อย 8 ตัวอักษร) พร้อมส่ง `previousDeviceId` เพื่อย้ายประวัติพาสและแต้มจากอุปกรณ์เดิมไปยังบัญชี:
 
 ```powershell
-curl.exe -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d '{"nickname":"นักเดินทาง","phoneOrEmail":"traveler@example.test","password":"change-this-password","province":"bangkok","amphoe":"samphanthawong","tambon":"ตลาดน้อย","previousDeviceId":"dev-old-device"}'
+curl.exe -X POST http://localhost:5000/api/auth/register -H "Content-Type: application/json" -d '{"nickname":"นักเดินทาง","fullName":"นักเดินทาง ตัวอย่าง","phoneOrEmail":"0812345678","email":"traveler@example.test","dateOfBirth":"1995-05-15","currentAddress":"123 ถนนสุขุมวิท แขวงคลองเตยเหนือ เขตวัฒนา กรุงเทพฯ","profilePhoto":"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=","password":"change-this-password","province":"bangkok","amphoe":"samphanthawong","tambon":"ตลาดน้อย","previousDeviceId":"dev-old-device"}'
 curl.exe -X POST http://localhost:5000/api/auth/login -H "Content-Type: application/json" -d '{"phoneOrEmail":"traveler@example.test","password":"change-this-password"}'
 ```
 

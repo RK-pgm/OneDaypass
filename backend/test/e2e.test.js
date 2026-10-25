@@ -326,38 +326,39 @@ async function runE2ETest() {
   const previousDevicePoints = await previousDevicePointsRes.json();
   assert(previousDevicePoints.totalPoints === 0, 'Second-device points were not moved to the account');
 
-  const profileRes = await fetch(`${base}/api/auth/profile`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      accountId,
-      profile: {
-        nickname: 'Updated Auth Test',
-        fullName: 'Updated Example',
-        email: 'updated@example.test',
-        dateOfBirth: '1996-07-16',
-        currentAddress: '99 ถนนนิมมานเหมินท์ อำเภอเมืองเชียงใหม่',
-        profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
-        province: 'chiangmai',
-        provinceName: 'เชียงใหม่',
-        provinceEmoji: '🌿',
-        district: 'เมืองเชียงใหม่',
-        districtName: 'เมืองเชียงใหม่',
-        tambon: 'สุเทพ',
-        lat: 18.7883,
-        lng: 98.9853,
-      },
-    }),
-  });
-  const updatedProfile = await profileRes.json();
-  assert(profileRes.ok && updatedProfile.account?.nickname === 'Updated Auth Test' && updatedProfile.account.fullName === 'Updated Example', 'Account profile update failed');
-  const reloginRes = await fetch(`${base}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phoneOrEmail: contact, password: 'test-password-123' }),
-  });
-  const reloggedIn = await reloginRes.json();
-  assert(reloggedIn.account?.province === 'chiangmai' && reloggedIn.account?.email === 'updated@example.test', 'Updated profile was not shared across login sessions');
+    const updatedEmail = `updated-${contact}`;
+    const profileRes = await fetch(`${base}/api/auth/profile`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        accountId,
+        profile: {
+          nickname: 'Updated Auth Test',
+          fullName: 'Updated Example',
+          email: updatedEmail,
+          dateOfBirth: '1996-07-16',
+          currentAddress: '99 ถนนนิมมานเหมินท์ อำเภอเมืองเชียงใหม่',
+          profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
+          province: 'chiangmai',
+          provinceName: 'เชียงใหม่',
+          provinceEmoji: '🌿',
+          district: 'เมืองเชียงใหม่',
+          districtName: 'เมืองเชียงใหม่',
+          tambon: 'สุเทพ',
+          lat: 18.7883,
+          lng: 98.9853,
+        },
+      }),
+    });
+    const updatedProfile = await profileRes.json();
+    assert(profileRes.ok && updatedProfile.account?.nickname === 'Updated Auth Test' && updatedProfile.account.fullName === 'Updated Example', 'Account profile update failed');
+    const reloginRes = await fetch(`${base}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phoneOrEmail: contact, password: 'test-password-123' }),
+    });
+    const reloggedIn = await reloginRes.json();
+    assert(reloggedIn.account?.province === 'chiangmai' && reloggedIn.account?.email === updatedEmail, 'Updated profile was not shared across login sessions');
 
   const loggedOutDeviceId = `after-logout-${Date.now()}`;
   const logoutLoginRes = await fetch(`${base}/api/auth/login`, {
@@ -400,7 +401,115 @@ async function runE2ETest() {
     }),
   });
   assert(duplicateRes.status === 409, 'Duplicate account registration was accepted');
-  console.log('✅ 14. Account registration, device data migration, and password login passed');
+
+  // 14b. Test phone registration with separate email, login via email, +66 phone login, and email uniqueness
+  const testPhone = `089${Math.floor(1000000 + Math.random() * 9000000)}`;
+  const testPhoneEmail = `phone-user-${Date.now()}@example.test`;
+  const phoneRegisterRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Phone User',
+      fullName: 'Phone User Example',
+      phoneOrEmail: testPhone,
+      email: testPhoneEmail,
+      dateOfBirth: '1998-03-20',
+      currentAddress: 'เชียงใหม่',
+      profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
+      password: 'phone-password-123',
+      province: 'chiangmai',
+      amphoe: 'เมืองเชียงใหม่',
+      tambon: 'สุเทพ',
+      previousDeviceId: `phone-dev-${Date.now()}`,
+    }),
+  });
+  assert(phoneRegisterRes.status === 201, 'Phone registration failed');
+
+  // Login via email (even though phone was in phoneOrEmail)
+  const loginByEmailRes = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneOrEmail: testPhoneEmail, password: 'phone-password-123' }),
+  });
+  const loginByEmailData = await loginByEmailRes.json();
+  assert(loginByEmailRes.ok && loginByEmailData.account?.phoneOrEmail === testPhone, 'Could not log in using email when registered with phone');
+
+  // Login via +66 formatted phone
+  const plus66Phone = `+66${testPhone.slice(1)}`;
+  const loginByPlus66Res = await fetch(`${base}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phoneOrEmail: plus66Phone, password: 'phone-password-123' }),
+  });
+  assert(loginByPlus66Res.ok, 'Could not log in using +66 international phone format');
+
+  // Duplicate email check when phone is different
+  const duplicateEmailRes = await fetch(`${base}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: 'Dup Email',
+      fullName: 'Dup Email User',
+      phoneOrEmail: `088${Math.floor(1000000 + Math.random() * 9000000)}`,
+      email: testPhoneEmail, // duplicate email!
+      dateOfBirth: '1998-03-20',
+      currentAddress: 'เชียงใหม่',
+      profilePhoto: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jxykAAAAASUVORK5CYII=',
+      password: 'phone-password-123',
+      province: 'chiangmai',
+      amphoe: 'เมืองเชียงใหม่',
+      tambon: 'สุเทพ',
+      previousDeviceId: `dup-dev-${Date.now()}`,
+    }),
+  });
+  assert(duplicateEmailRes.status === 409, 'Accepted duplicate email on registration with different phone');
+
+  console.log('✅ 14. Account registration, device data migration, +66 phone format, email login, and password login passed');
+
+  // 15. Fast 1-Click Social Login (Google & LINE)
+  const socialGoogleEmail = `google-traveler-${Date.now()}@gmail.com`;
+  const socialGoogleRes = await fetch(`${base}/api/auth/social`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'google',
+      providerId: `g_${Date.now()}`,
+      email: socialGoogleEmail,
+      name: 'สมชาย ใจดี',
+      previousDeviceId: `social-dev-${Date.now()}`,
+    }),
+  });
+  const socialGoogleData = await socialGoogleRes.json();
+  assert(socialGoogleRes.status === 201 && socialGoogleData.isNew && socialGoogleData.account?.email === socialGoogleEmail, 'Google 1-click registration failed');
+
+  // Relogin with same Google account (should not duplicate, should sign in existing)
+  const socialGoogleReloginRes = await fetch(`${base}/api/auth/social`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'google',
+      providerId: `g_${Date.now()}`,
+      email: socialGoogleEmail,
+    }),
+  });
+  const socialGoogleReloginData = await socialGoogleReloginRes.json();
+  assert(socialGoogleReloginRes.ok && !socialGoogleReloginData.isNew && socialGoogleReloginData.account?.accountId === socialGoogleData.account.accountId, 'Google 1-click relogin failed');
+
+  // LINE Social Login
+  const socialLineEmail = `line-user-${Date.now()}@line.me`;
+  const socialLineRes = await fetch(`${base}/api/auth/social`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      provider: 'line',
+      providerId: `line_${Date.now()}`,
+      email: socialLineEmail,
+      name: 'นักเดินทาง LINE',
+    }),
+  });
+  const socialLineData = await socialLineRes.json();
+  assert(socialLineRes.status === 201 && socialLineData.account?.provider === 'line', 'LINE 1-click registration failed');
+  console.log('✅ 15. Fast 1-Click Social Login (Google & LINE) passed');
 
   console.log('\n🎉 ALL DAYPASS API CHECKS PASSED!');
 }

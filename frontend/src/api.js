@@ -31,6 +31,16 @@ export function resetDeviceId() {
   return id;
 }
 
+export function logoutAccount() {
+  localStorage.removeItem('daypass_user_auth');
+  localStorage.removeItem('daypass_user_profile');
+  localStorage.removeItem('daypass_profile');
+  localStorage.removeItem('daypass_recent_pass_id');
+  sessionStorage.removeItem('daypass_passId');
+  resetDeviceId();
+  window.dispatchEvent(new Event('daypass_auth_changed'));
+}
+
 // ── helper fetch ────────────────────────────────────────────
 async function apiFetch(path, options = {}) {
   const { headers, ...requestOptions } = options;
@@ -61,6 +71,13 @@ export async function updateAccountProfile(accountId, profile) {
   return apiFetch('/auth/profile', {
     method: 'PUT',
     body: JSON.stringify({ accountId, profile }),
+  });
+}
+
+export async function socialLoginAccount(socialData, previousDeviceId) {
+  return apiFetch('/auth/social', {
+    method: 'POST',
+    body: JSON.stringify({ ...socialData, previousDeviceId }),
   });
 }
 

@@ -7,17 +7,31 @@ const router = express.Router();
 const scrypt = promisify(crypto.scrypt);
 const PASSWORD_BYTES = 64;
 
+function getEmailJsonExtractSql() {
+  return db.isPostgres
+    ? "profileJson::json->>'email'"
+    : "json_extract(profileJson, '$.email')";
+}
+
 function normalizeLogin(value) {
-  const trimmed = value.trim();
-  return trimmed.includes('@')
-    ? trimmed.toLowerCase()
-    : trimmed.replace(/[\s()-]/g, '');
+  const trimmed = typeof value === 'string' ? value.trim() : '';
+  if (trimmed.includes('@')) {
+    return trimmed.toLowerCase();
+  }
+  let digits = trimmed.replace(/[\s()-]/g, '');
+  if (digits.startsWith('+66')) {
+    digits = '0' + digits.slice(3);
+  } else if (digits.startsWith('66') && digits.length >= 11) {
+    digits = '0' + digits.slice(2);
+  }
+  return digits;
 }
 
 function isValidLogin(value) {
+  if (typeof value !== 'string') return false;
   const normalized = normalizeLogin(value);
-  if (normalized.includes('@')) return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
-  return /^\+?\d{8,15}$/.test(normalized);
+  if (normalized.includes('@')) return isValidEmail(normalized);
+  return /^0\d{8,9}$/.test(normalized) || /^\+?\d{8,15}$/.test(normalized);
 }
 
 function isValidEmail(value) {
@@ -35,7 +49,7 @@ function isValidDateOfBirth(value) {
 function isValidProfilePhoto(value) {
   return typeof value === 'string' &&
     value.length <= 500_000 &&
-    /^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value);
+    (/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value) || /^\/(?:mascot|images)\/[a-zA-Z0-9_\-./]+\.(?:jpg|jpeg|png|webp|svg)$/i.test(value));
 }
 
 function publicAccount(row) {
@@ -106,7 +120,12 @@ router.post('/register', async (req, res) => {
     }
 
     const loginKey = normalizeLogin(phoneOrEmail);
-    const existing = await db.get('SELECT id FROM accounts WHERE loginKey = ?', loginKey);
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailExtract = getEmailJsonExtractSql();
+    const existing = await db.get(
+      `SELECT id FROM accounts WHERE loginKey = ? OR loginKey = ? OR ${emailExtract} = ?`,
+      loginKey, normalizedEmail, normalizedEmail
+    );
     if (existing) return res.status(409).json({ error: 'เบอร์โทรศัพท์หรืออีเมลนี้มีบัญชีแล้ว กรุณาเข้าสู่ระบบ' });
 
     const id = `acct_${crypto.randomUUID()}`;
@@ -117,7 +136,7 @@ router.post('/register', async (req, res) => {
       nickname: nickname.trim(),
       fullName: fullName.trim(),
       phoneOrEmail: phoneOrEmail.trim(),
-      email: email.trim().toLowerCase(),
+      email: normalizedEmail,
       dateOfBirth,
       currentAddress: currentAddress.trim(),
       profilePhoto,
@@ -171,10 +190,13 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'กรุณากรอกรหัสผ่าน' });
     }
 
+    const loginInput = normalizeLogin(phoneOrEmail);
+    const emailExtract = getEmailJsonExtractSql();
     const row = await db.get(`
-      SELECT id, passwordSalt, passwordHash, profileJson
-      FROM accounts WHERE loginKey = ?
-    `, normalizeLogin(phoneOrEmail));
+      SELECT id, loginKey, passwordSalt, passwordHash, profileJson
+      FROM accounts
+      WHERE loginKey = ? OR phoneOrEmail = ? OR ${emailExtract} = ?
+    `, loginInput, phoneOrEmail.trim(), loginInput);
     if (!row) return res.status(401).json({ error: 'เบอร์โทรศัพท์/อีเมลหรือรหัสผ่านไม่ถูกต้อง' });
 
     const candidate = await scrypt(password, Buffer.from(row.passwordSalt, 'hex'), PASSWORD_BYTES);
@@ -219,9 +241,28 @@ router.put('/profile', async (req, res) => {
       return res.status(400).json({ error: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
     }
 
-    const row = await db.get('SELECT profileJson FROM accounts WHERE id = ?', accountId);
+    const row = await db.get('SELECT loginKey, profileJson FROM accounts WHERE id = ?', accountId);
     if (!row) return res.status(404).json({ error: 'ไม่พบบัญชีผู้ใช้' });
     const current = JSON.parse(row.profileJson);
+
+    let nextLoginKey = row.loginKey;
+    if (typeof profile.email === 'string') {
+      const newEmail = profile.email.trim().toLowerCase();
+      if (newEmail !== current.email) {
+        const emailExtract = getEmailJsonExtractSql();
+        const conflict = await db.get(
+          `SELECT id FROM accounts WHERE id != ? AND (loginKey = ? OR ${emailExtract} = ?)`,
+          accountId, newEmail, newEmail
+        );
+        if (conflict) {
+          return res.status(409).json({ error: 'อีเมลนี้ถูกใช้งานโดยบัญชีอื่นแล้ว' });
+        }
+        if (row.loginKey === current.email) {
+          nextLoginKey = newEmail;
+        }
+      }
+    }
+
     const updated = {
       ...current,
       nickname: profile.nickname.trim(),
@@ -240,12 +281,103 @@ router.put('/profile', async (req, res) => {
       lng: Number.isFinite(profile.lng) ? profile.lng : current.lng,
       updatedAt: new Date().toISOString(),
     };
-    await db.run('UPDATE accounts SET profileJson = ?, updatedAt = ? WHERE id = ?',
-      JSON.stringify(updated), updated.updatedAt, accountId);
+    await db.run('UPDATE accounts SET loginKey = ?, profileJson = ?, updatedAt = ? WHERE id = ?',
+      nextLoginKey, JSON.stringify(updated), updated.updatedAt, accountId);
     return res.json({ ok: true, account: { ...updated, accountId } });
   } catch (error) {
     console.error('[Error PUT /api/auth/profile]:', error);
     return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการบันทึกโปรไฟล์' });
+  }
+});
+
+router.post('/social', async (req, res) => {
+  try {
+    const { provider, providerId, email, name, avatar, previousDeviceId } = req.body || {};
+    if (!provider || !['google', 'line'].includes(provider)) {
+      return res.status(400).json({ error: 'ผู้ให้บริการ Social Login ไม่ถูกต้อง' });
+    }
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ error: 'อีเมลจาก Social Account ไม่ถูกต้อง' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailExtract = getEmailJsonExtractSql();
+
+    const row = await db.get(`
+      SELECT id, loginKey, passwordSalt, passwordHash, profileJson
+      FROM accounts
+      WHERE loginKey = ? OR phoneOrEmail = ? OR ${emailExtract} = ?
+    `, normalizedEmail, normalizedEmail, normalizedEmail);
+
+    if (row) {
+      if (typeof previousDeviceId === 'string' && previousDeviceId.trim() && previousDeviceId.length <= 128) {
+        await db.transaction(() => migrateDeviceData(previousDeviceId, row.id));
+      }
+      return res.json({ ok: true, account: publicAccount(row), isNew: false });
+    }
+
+    const id = `acct_${crypto.randomUUID()}`;
+    const salt = crypto.randomBytes(16);
+    const randomSecret = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await scrypt(randomSecret, salt, PASSWORD_BYTES);
+    const now = new Date().toISOString();
+
+    const nickname = (name && typeof name === 'string' && name.trim())
+      ? name.trim().slice(0, 40)
+      : (provider === 'line' ? 'นักเดินทาง LINE' : 'Google Traveler');
+    const fullName = (name && typeof name === 'string' && name.trim())
+      ? name.trim().slice(0, 120)
+      : nickname;
+    const profilePhoto = (avatar && typeof avatar === 'string' && avatar.length <= 500_000)
+      ? avatar
+      : (provider === 'line'
+        ? '/mascot/nong-pass-wave.jpg'
+        : '/mascot/nong-pass-guide.jpg');
+
+    const profile = {
+      nickname,
+      fullName,
+      phoneOrEmail: normalizedEmail,
+      email: normalizedEmail,
+      provider,
+      providerId: typeof providerId === 'string' ? providerId.slice(0, 128) : `${provider}_${Date.now()}`,
+      dateOfBirth: '2000-01-01',
+      currentAddress: 'กรุงเทพมหานคร',
+      profilePhoto,
+      province: 'bangkok',
+      provinceName: 'กรุงเทพมหานคร',
+      provinceEmoji: '🏙️',
+      amphoe: 'samphanthawong',
+      amphoeName: 'สัมพันธวงศ์',
+      tambon: 'ตลาดน้อย',
+      lat: 13.7313,
+      lng: 100.5105,
+      registeredAt: now,
+    };
+
+    await db.transaction(async () => {
+      await db.run(`
+        INSERT INTO accounts (id, loginKey, phoneOrEmail, passwordSalt, passwordHash, profileJson, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `, id, normalizedEmail, normalizedEmail, salt.toString('hex'), passwordHash.toString('hex'), JSON.stringify(profile), now, now);
+      await migrateDeviceData(previousDeviceId, id);
+      const welcomeReason = 'ของขวัญต้อนรับสมาชิกใหม่ OneDaypass ✨';
+      const hasWelcomeBonus = await db.get(
+        'SELECT 1 FROM points_ledger WHERE deviceId = ? AND reason = ? LIMIT 1', id, welcomeReason
+      );
+      if (!hasWelcomeBonus) {
+        await db.run(`
+          INSERT INTO points_ledger (id, deviceId, delta, reason, at)
+          VALUES (?, ?, 50, ?, ?)
+        `, `pt_${crypto.randomUUID()}`, id, welcomeReason, now);
+      }
+    });
+
+    const newRow = await db.get('SELECT id, profileJson FROM accounts WHERE id = ?', id);
+    return res.status(201).json({ ok: true, account: publicAccount(newRow), isNew: true });
+  } catch (error) {
+    console.error('[Error POST /api/auth/social]:', error);
+    return res.status(500).json({ error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Social Account' });
   }
 });
 
